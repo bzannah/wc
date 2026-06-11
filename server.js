@@ -18,9 +18,14 @@ const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host || `${host}:${port}`}`);
 
     if (url.pathname === "/api/health") {
+      const checkQuota = url.searchParams.get("checkQuota") === "1";
+      const snapshot = checkQuota ? await getWorldCupSnapshot({ force: true }) : null;
+      const summary = getProviderConfigSummary();
       return sendJson(response, 200, {
         ok: true,
-        ...getProviderConfigSummary()
+        ...summary,
+        quotaChecked: checkQuota,
+        providerQuota: snapshot?.providerQuota || summary.providerQuota
       });
     }
 
