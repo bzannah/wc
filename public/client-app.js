@@ -12,6 +12,7 @@ const appState = {
   dataSource: "Local model",
   dataMode: "schedule-only",
   dataQuality: { level: "warning", errors: [], warnings: [] },
+  providerQuota: null,
   warnings: []
 };
 
@@ -83,6 +84,7 @@ async function loadSnapshot({ force }) {
     appState.dataSource = snapshot.provider || snapshot.source || "Live data";
     appState.dataMode = snapshot.dataMode || snapshot.source || "unknown";
     appState.dataQuality = snapshot.dataQuality || { level: "warning", errors: [], warnings: [] };
+    appState.providerQuota = snapshot.providerQuota || null;
     appState.warnings = Array.isArray(snapshot.warnings) ? snapshot.warnings : [];
     document.querySelector("#refresh").value = String(appState.refreshEvery);
     rebuildIndexes();
@@ -92,6 +94,7 @@ async function loadSnapshot({ force }) {
     appState.dataSource = "Local fallback";
     appState.dataMode = "schedule-only";
     appState.dataQuality = { level: "warning", errors: [], warnings: appState.warnings };
+    appState.providerQuota = null;
     renderApp();
   } finally {
     appState.isLoading = false;
@@ -618,6 +621,7 @@ function getDataConfidence() {
   const errors = appState.dataQuality.errors || [];
   const warnings = appState.warnings || [];
   const hasMissingKey = warnings.some((warning) => warning.includes("RAPIDAPI_KEY"));
+  const quotaAlert = quotaAlertState(appState.providerQuota);
 
   if (errors.length) {
     return {
@@ -629,13 +633,15 @@ function getDataConfidence() {
     };
   }
 
+  if (quotaAlert) return quotaAlert;
+
   if (appState.dataMode === "live-provider-merged") {
     return {
       tone: "is-live",
       title: "Live provider connected",
       short: "Live provider verified",
       summary: "Scores update only after team, group, and kickoff checks pass.",
-      details: [`Refresh every ${appState.refreshEvery}s.`, "Schedule and live data are cross-checked."]
+      details: [`Refresh every ${appState.refreshEvery}s.`, "Schedule and live data are cross-checked.", ...quotaDetailLines(appState.providerQuota)]
     };
   }
 
@@ -655,7 +661,7 @@ function getDataConfidence() {
       title: "Provider delayed",
       short: "Schedule fallback active",
       summary: warnings[0] || "Using the verified schedule while live data is delayed.",
-      details: ["The app rejects ambiguous provider events.", "Refresh continues automatically."]
+      details: ["The app rejects ambiguous provider events.", "Refresh continues automatically.", ...quotaDetailLines(appState.providerQuota)]
     };
   }
 
@@ -664,8 +670,63 @@ function getDataConfidence() {
     title: "Verified schedule",
     short: "Verified schedule",
     summary: "All fixtures, teams, venues, and opening-day checks are passing.",
-    details: [`Refresh every ${appState.refreshEvery}s.`, "Live scores are merged only after validation."]
+    details: [`Refresh every ${appState.refreshEvery}s.`, "Live scores are merged only after validation.", ...quotaDetailLines(appState.providerQuota)]
   };
+}
+
+function quotaAlertState(quota) {
+  if (!quota) return null;
+
+  if (quota.status === "limit_reached") {
+    return {
+      tone: "is-error",
+      title: "API limit reached",
+      short: "API limit reached",
+      summary: quota.message || "RapidAPI is rejecting live requests because the plan limit has been reached.",
+      details: [
+        quotaRemainingText(quota),
+        quota.resetAt ? `Resets ${formatQuotaReset(quota.resetAt)}` : "Check RapidAPI for the reset time.",
+        "Upgrade the RapidAPI plan or increase the refresh interval."
+      ].filter(Boolean)
+    };
+  }
+
+  if (quota.status === "near_limit") {
+    return {
+      tone: "is-warning",
+      title: "API quota low",
+      short: "API quota low",
+      summary: quota.message || "RapidAPI usage is close to the plan limit.",
+      details: [
+        quotaRemainingText(quota),
+        quota.resetAt ? `Resets ${formatQuotaReset(quota.resetAt)}` : "",
+        "Consider upgrading before match traffic increases."
+      ].filter(Boolean)
+    };
+  }
+
+  return null;
+}
+
+function quotaDetailLines(quota) {
+  if (!quota || ["not_configured", "unknown"].includes(quota.status)) return [];
+  return [quotaRemainingText(quota) || quota.message].filter(Boolean);
+}
+
+function quotaRemainingText(quota) {
+  if (!quota || !Number.isFinite(quota.remaining)) return quota?.message || "";
+  if (Number.isFinite(quota.limit)) return `${quota.remaining} API requests remaining of ${quota.limit}.`;
+  return `${quota.remaining} API requests remaining.`;
+}
+
+function formatQuotaReset(value) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: appState.timezone,
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
 }
 
 function groupFixtures(groupId) {
@@ -710,6 +771,7 @@ function dataQualityLabel() {
 
 function mostImportantDataNotice() {
   if (appState.dataQuality.errors?.length) return appState.dataQuality.errors[0];
+  if (["limit_reached", "near_limit"].includes(appState.providerQuota?.status)) return appState.providerQuota.message;
   if (appState.dataMode === "schedule-only" && appState.warnings.some((warning) => warning.includes("RAPIDAPI_KEY"))) {
     return "live scores unavailable";
   }
