@@ -1,10 +1,52 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  getProviderConfigSummary,
+  getProviderPaths,
   providerQuotaWarning,
   readProviderQuota,
   summarizeProviderQuota
 } = require("./provider-client.js");
+
+function withEnv(overrides, run) {
+  const keys = Object.keys(overrides);
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+
+  try {
+    run();
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+}
+
+test("getProviderPaths does not guess a non-existent live endpoint", () => {
+  withEnv({
+    SOFASCORE_PATHS: undefined,
+    SOFASCORE_SEASON_ID: undefined
+  }, () => {
+    assert.deepEqual(getProviderPaths(), []);
+  });
+});
+
+test("provider summary requires both API key and endpoint paths", () => {
+  withEnv({
+    RAPIDAPI_KEY: "test-key",
+    SOFASCORE_PATHS: undefined,
+    SOFASCORE_SEASON_ID: undefined
+  }, () => {
+    const summary = getProviderConfigSummary();
+    assert.equal(summary.liveProviderConfigured, true);
+    assert.equal(summary.liveProviderReady, false);
+    assert.deepEqual(summary.providerPaths, []);
+  });
+});
 
 test("readProviderQuota detects healthy RapidAPI quota", () => {
   const quota = readProviderQuota(new Headers({

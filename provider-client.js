@@ -21,20 +21,28 @@ async function getWorldCupSnapshot(options = {}) {
   const warnings = [];
   let providerPayloads = [];
   let providerQuota = null;
+  const providerPaths = getProviderPaths();
 
   if (process.env.RAPIDAPI_KEY) {
-    try {
-      const result = await fetchProviderPayloads();
-      providerPayloads = result.payloads;
-      providerQuota = result.quota;
-      if (providerPayloads.length === 0) {
-        warnings.push("No configured Sofascore RapidAPI endpoint returned usable data.");
-      }
-    } catch (error) {
-      providerQuota = error.quota || quotaStatus("unknown", {
-        message: "Provider quota could not be read from the failed response."
+    if (providerPaths.length === 0) {
+      providerQuota = quotaStatus("path_not_configured", {
+        message: "Sofascore RapidAPI key is configured, but no valid live endpoint path is configured."
       });
-      warnings.push(`Live provider unavailable: ${error.message}`);
+      warnings.push("Live provider endpoint is not configured; using verified schedule mode.");
+    } else {
+      try {
+        const result = await fetchProviderPayloads(providerPaths);
+        providerPayloads = result.payloads;
+        providerQuota = result.quota;
+        if (providerPayloads.length === 0) {
+          warnings.push("No configured Sofascore RapidAPI endpoint returned usable data.");
+        }
+      } catch (error) {
+        providerQuota = error.quota || quotaStatus("unknown", {
+          message: "Provider quota could not be read from the failed response."
+        });
+        warnings.push(`Live provider unavailable: ${error.message}`);
+      }
     }
   } else {
     providerQuota = quotaStatus("not_configured", {
@@ -54,8 +62,7 @@ async function getWorldCupSnapshot(options = {}) {
   return snapshotCache;
 }
 
-async function fetchProviderPayloads() {
-  const paths = getProviderPaths();
+async function fetchProviderPayloads(paths = getProviderPaths()) {
   const payloads = [];
   const errors = [];
   const quotaReports = [];
@@ -88,16 +95,15 @@ function getProviderPaths() {
 
   const uniqueTournamentId = process.env.SOFASCORE_UNIQUE_TOURNAMENT_ID || "16";
   const seasonId = process.env.SOFASCORE_SEASON_ID;
-  const defaults = ["/matches/get-live"];
 
   if (seasonId) {
-    defaults.unshift(
+    return [
       `/tournaments/get-events?uniqueTournamentId=${encodeURIComponent(uniqueTournamentId)}&seasonId=${encodeURIComponent(seasonId)}`,
       `/tournaments/get-matches?uniqueTournamentId=${encodeURIComponent(uniqueTournamentId)}&seasonId=${encodeURIComponent(seasonId)}`
-    );
+    ];
   }
 
-  return defaults;
+  return [];
 }
 
 async function fetchRapidApiJson(providerPath) {
@@ -125,10 +131,12 @@ async function fetchRapidApiJson(providerPath) {
 }
 
 function getProviderConfigSummary() {
+  const providerPaths = getProviderPaths();
   return {
     liveProviderConfigured: Boolean(process.env.RAPIDAPI_KEY),
+    liveProviderReady: Boolean(process.env.RAPIDAPI_KEY && providerPaths.length > 0),
     refreshEvery: getRefreshEvery(),
-    providerPaths: getProviderPaths(),
+    providerPaths,
     providerQuota: lastProviderQuota
   };
 }
@@ -187,7 +195,7 @@ function summarizeProviderQuota(reports, now = new Date()) {
     });
   }
 
-  const levelOrder = { limit_reached: 4, near_limit: 3, ok: 2, unknown: 1, not_configured: 0 };
+  const levelOrder = { limit_reached: 4, near_limit: 3, ok: 2, unknown: 1, path_not_configured: 0, not_configured: 0 };
   const status = usable
     .map((report) => report.status || "unknown")
     .sort((a, b) => (levelOrder[b] || 0) - (levelOrder[a] || 0))[0];
@@ -250,6 +258,7 @@ function quotaStatus(status, fields = {}) {
 
 function quotaMessage(status, remaining, limit, resetAt) {
   if (status === "not_configured") return "RapidAPI is not configured.";
+  if (status === "path_not_configured") return "Sofascore RapidAPI endpoint path is not configured.";
   if (status === "limit_reached") return `RapidAPI limit reached${resetAt ? ` until ${resetAt}` : ""}.`;
   if (status === "near_limit") return `RapidAPI quota is low: ${remaining} remaining${limit ? ` of ${limit}` : ""}.`;
   if (status === "ok") return `RapidAPI quota is healthy${Number.isFinite(remaining) ? `: ${remaining} remaining` : ""}.`;

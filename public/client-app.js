@@ -621,6 +621,8 @@ function getDataConfidence() {
   const errors = appState.dataQuality.errors || [];
   const warnings = appState.warnings || [];
   const hasMissingKey = warnings.some((warning) => warning.includes("RAPIDAPI_KEY"));
+  const hasMissingEndpoint = appState.providerQuota?.status === "path_not_configured" ||
+    warnings.some((warning) => warning.includes("Live provider endpoint is not configured"));
   const quotaAlert = quotaAlertState(appState.providerQuota);
 
   if (errors.length) {
@@ -652,6 +654,16 @@ function getDataConfidence() {
       short: "Verified schedule",
       summary: "The full tournament schedule is source-checked. Live scores need the provider key.",
       details: ["No unverified live scores are shown.", `Refresh every ${appState.refreshEvery}s.`]
+    };
+  }
+
+  if (hasMissingEndpoint) {
+    return {
+      tone: "is-verified",
+      title: "Verified schedule mode",
+      short: "Live endpoint not configured",
+      summary: "The tournament schedule is verified. Live scores will start after a valid Sofascore endpoint path is configured.",
+      details: ["No unverified live scores are shown.", `Refresh every ${appState.refreshEvery}s.`, ...quotaDetailLines(appState.providerQuota)]
     };
   }
 
@@ -709,7 +721,7 @@ function quotaAlertState(quota) {
 }
 
 function quotaDetailLines(quota) {
-  if (!quota || ["not_configured", "unknown"].includes(quota.status)) return [];
+  if (!quota || ["not_configured", "path_not_configured", "unknown"].includes(quota.status)) return [];
   return [quotaRemainingText(quota) || quota.message].filter(Boolean);
 }
 
@@ -772,6 +784,7 @@ function dataQualityLabel() {
 function mostImportantDataNotice() {
   if (appState.dataQuality.errors?.length) return appState.dataQuality.errors[0];
   if (["limit_reached", "near_limit"].includes(appState.providerQuota?.status)) return appState.providerQuota.message;
+  if (appState.providerQuota?.status === "path_not_configured") return "verified schedule mode";
   if (appState.dataMode === "schedule-only" && appState.warnings.some((warning) => warning.includes("RAPIDAPI_KEY"))) {
     return "live scores unavailable";
   }
