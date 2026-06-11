@@ -232,7 +232,7 @@ function applyResult(team, scored, conceded) {
 }
 
 function shouldCountForTable(fixture) {
-  return ["live", "finished"].includes(fixture.status) && Number.isFinite(fixture.homeScore) && Number.isFinite(fixture.awayScore);
+  return ["live", "half-time", "finished"].includes(fixture.status) && Number.isFinite(fixture.homeScore) && Number.isFinite(fixture.awayScore);
 }
 
 function compareTeams(a, b) {
@@ -361,7 +361,9 @@ function normalizeVenue(venue, venueLookup, venues) {
 }
 
 function normalizeStatus(status = {}) {
-  const type = normalizeName(status.type || status.description || status.code || "");
+  const fields = statusFields(status);
+  const type = fields.join("");
+  if (isHalfTimeStatus(fields, status)) return "half-time";
   if (["inprogress", "live"].includes(type) || type.includes("period") || type.includes("half")) return "live";
   if (["finished", "afterpenalties", "afterextratime"].includes(type) || type.includes("finished")) return "finished";
   if (type.includes("postponed") || type.includes("cancelled") || type.includes("canceled")) return "postponed";
@@ -380,12 +382,33 @@ function normalizeKickoff(event) {
 }
 
 function normalizeMinute(event, status, now) {
+  if (status === "half-time") return null;
   if (status !== "live") return null;
   if (Number.isFinite(event.minute)) return event.minute;
   if (Number.isFinite(event.time?.currentPeriodStartTimestamp)) {
-    return Math.max(1, Math.min(130, Math.floor((now.getTime() / 1000 - event.time.currentPeriodStartTimestamp) / 60)));
+    const elapsed = Math.max(1, Math.floor((now.getTime() / 1000 - event.time.currentPeriodStartTimestamp) / 60));
+    return Math.max(1, Math.min(130, isSecondHalfStatus(statusFields(event.status), event.status) ? 45 + elapsed : elapsed));
   }
   return null;
+}
+
+function statusFields(status = {}) {
+  return [
+    status.type,
+    status.description,
+    status.code,
+    status.name,
+    status.short,
+    status.long
+  ].filter((value) => value !== undefined && value !== null).map(normalizeName);
+}
+
+function isHalfTimeStatus(fields, status = {}) {
+  return fields.some((field) => ["ht", "halftime"].includes(field) || field.includes("halftime"));
+}
+
+function isSecondHalfStatus(fields, status = {}) {
+  return fields.some((field) => field.includes("2ndhalf") || field.includes("secondhalf"));
 }
 
 function scoreValue(score) {

@@ -43,7 +43,7 @@ function validateTournamentData(data) {
       warnings.push(`${fixture.id} references unknown venue ${fixture.venue}.`);
     }
 
-    if (!["scheduled", "live", "finished", "postponed"].includes(fixture.status)) {
+    if (!["scheduled", "live", "half-time", "finished", "postponed"].includes(fixture.status)) {
       errors.push(`${fixture.id} has invalid status ${fixture.status}.`);
     }
 
@@ -51,7 +51,7 @@ function validateTournamentData(data) {
       warnings.push(`${fixture.id} is scheduled but includes a score.`);
     }
 
-    if (["live", "finished"].includes(fixture.status) && (!isScore(fixture.homeScore) || !isScore(fixture.awayScore))) {
+    if (["live", "half-time", "finished"].includes(fixture.status) && (!isScore(fixture.homeScore) || !isScore(fixture.awayScore))) {
       errors.push(`${fixture.id} is ${fixture.status} but does not include both scores.`);
     }
 
@@ -98,7 +98,7 @@ function canMergeProviderEvent(fixture, event) {
     }
   }
 
-  if (["live", "finished"].includes(event.status) && (!isScore(event.homeScore) || !isScore(event.awayScore))) {
+  if (["live", "half-time", "finished"].includes(event.status) && (!isScore(event.homeScore) || !isScore(event.awayScore))) {
     reasons.push("Live/finished provider event is missing a complete score.");
   }
 

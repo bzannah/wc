@@ -87,6 +87,37 @@ test("provider event with reversed teams keeps canonical fixture order", () => {
   assert.equal(fixture.awayScore, 0);
 });
 
+test("half-time provider event does not show a runaway live minute", () => {
+  const snapshot = createWorldCupSnapshot({
+    now: new Date("2026-06-11T20:00:00Z"),
+    providerPayloads: [
+      {
+        events: [
+          {
+            id: 9004,
+            tournament: { name: "FIFA World Cup, Group A" },
+            homeTeam: { name: "Mexico" },
+            awayTeam: { name: "South Africa" },
+            homeScore: { current: 1 },
+            awayScore: { current: 0 },
+            status: { type: "inprogress", description: "Halftime" },
+            time: { currentPeriodStartTimestamp: 1781204400 },
+            startTimestamp: 1781204400
+          }
+        ]
+      }
+    ]
+  });
+  const fixture = snapshot.groupFixtures.find((item) => item.providerId === "9004");
+
+  assert.equal(snapshot.source, "live");
+  assert.equal(fixture.status, "half-time");
+  assert.equal(fixture.minute, null);
+  assert.equal(fixture.homeScore, 1);
+  assert.equal(fixture.awayScore, 0);
+  assert.equal(snapshot.dataQuality.level, "verified");
+});
+
 test("global live feed ignores unrelated football events without user-facing warnings", () => {
   const snapshot = createWorldCupSnapshot({
     now: new Date("2026-06-11T20:00:00Z"),

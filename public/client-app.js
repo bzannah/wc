@@ -130,7 +130,7 @@ function renderApp() {
 
 function renderStatusBar() {
   const fixtures = appData.allFixtures || [];
-  const live = fixtures.filter((fixture) => fixture.status === "live");
+  const live = fixtures.filter(isLiveFixture);
   const next = fixtures
     .filter((fixture) => fixture.status === "scheduled")
     .slice()
@@ -171,7 +171,7 @@ function getTodaySet() {
   const todayKey = localDateKey(now, appState.timezone);
   const todaysFixtures = fixtures.filter((fixture) => localDateKey(fixture.kickoff, appState.timezone) === todayKey);
   const featuredToday =
-    todaysFixtures.find((fixture) => fixture.status === "live") ||
+    todaysFixtures.find(isLiveFixture) ||
     todaysFixtures.find((fixture) => fixture.status === "scheduled") ||
     todaysFixtures[todaysFixtures.length - 1];
 
@@ -180,7 +180,7 @@ function getTodaySet() {
   }
 
   const nextFixture =
-    fixtures.find((fixture) => fixture.status === "live") ||
+    fixtures.find(isLiveFixture) ||
     fixtures.find((fixture) => fixture.status === "scheduled" && new Date(fixture.kickoff) >= now) ||
     fixtures.find((fixture) => fixture.status === "scheduled") ||
     fixtures[fixtures.length - 1];
@@ -331,7 +331,7 @@ function renderFixtures() {
 
 function groupCard(group) {
   const fixtures = groupFixtures(group.id);
-  const next = fixtures.find((fixture) => fixture.status === "live") || fixtures.find((fixture) => fixture.status === "scheduled") || fixtures[0];
+  const next = fixtures.find(isLiveFixture) || fixtures.find((fixture) => fixture.status === "scheduled") || fixtures[0];
   const hidden = appState.search && !groupMatchesSearch(group, fixtures);
   const leader = group.teams[0];
   const rows = group.teams.map((team, index) => standingRow(team, index)).join("");
@@ -408,7 +408,7 @@ function roundColumn(title, fixtures) {
 
 function knockoutCard(fixture) {
   const venue = venueById.get(fixture.venue) || {};
-  const statusClass = fixture.status === "live" ? "is-live" : fixture.status === "finished" ? "is-finished" : "";
+  const statusClass = isLiveFixture(fixture) ? "is-live" : fixture.status === "finished" ? "is-finished" : "";
 
   return `
     <article class="knockout-card ${fixture.stage === "Final" ? "is-final" : ""} ${statusClass}">
@@ -470,7 +470,7 @@ function miniFixture(fixture) {
   const home = labelFor(fixture.home);
   const away = labelFor(fixture.away);
   const venue = venueById.get(fixture.venue) || {};
-  const kicker = fixture.status === "live" ? `${fixture.minute ? `${fixture.minute}' ` : ""}live` : `${formatShortDate(fixture.kickoff)} · ${formatTime(fixture.kickoff)}`;
+  const kicker = isLiveFixture(fixture) ? fixtureStatusLabel(fixture) : `${formatShortDate(fixture.kickoff)} · ${formatTime(fixture.kickoff)}`;
 
   return `
     <div class="mini-fixture">
@@ -567,6 +567,7 @@ function fixtureGameWeekLabel(fixture) {
 }
 
 function fixtureStatusLabel(fixture) {
+  if (fixture.status === "half-time") return "HT";
   if (fixture.status === "live") return fixture.minute ? `${fixture.minute}' live` : "Live";
   if (fixture.status === "finished") return "Final";
   if (fixture.status === "postponed") return "Postponed";
@@ -574,7 +575,7 @@ function fixtureStatusLabel(fixture) {
 }
 
 function statusTone(fixture) {
-  if (fixture.status === "live") return "is-live";
+  if (isLiveFixture(fixture)) return "is-live";
   if (fixture.status === "finished") return "is-finished";
   if (fixture.status === "postponed") return "is-postponed";
   return "is-scheduled";
@@ -843,6 +844,7 @@ function formatVenueTime(value, timeZone) {
 }
 
 function formatCountdown(fixture) {
+  if (fixture.status === "half-time") return "Half-time";
   if (fixture.status === "live") return "Live now";
   if (fixture.status === "finished") return "Final";
   if (fixture.status === "postponed") return "Postponed";
@@ -862,6 +864,10 @@ function formatCountdown(fixture) {
   if (days > 0) return `Starts in ${days}d ${hours}h`;
   if (hours > 0) return `Starts in ${hours}h ${minutes}m`;
   return `Starts in ${minutes}m`;
+}
+
+function isLiveFixture(fixture) {
+  return ["live", "half-time"].includes(fixture?.status);
 }
 
 function localDateKey(value, timeZone) {
