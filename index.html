@@ -18,7 +18,8 @@
         </a>
 
         <nav class="view-switcher" aria-label="Views">
-          <button class="is-active" data-view="chart" type="button">Chart</button>
+          <button class="is-active" data-view="today" type="button">Today</button>
+          <button data-view="chart" type="button">Bracket</button>
           <button data-view="fixtures" type="button">Fixtures</button>
           <button data-view="groups" type="button">Groups</button>
         </nav>
@@ -53,6 +54,11 @@
           </button>
         </div>
       </header>
+
+      <section class="today-command" id="today" aria-label="Today at the World Cup">
+        <div class="today-panel" id="todayPanel"></div>
+        <aside class="confidence-card" id="dataConfidence" aria-live="polite"></aside>
+      </section>
 
       <section class="pulse-panel" aria-label="Tournament status">
         <div class="hero-title">

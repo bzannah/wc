@@ -110,12 +110,14 @@ function startRefreshLoop() {
     if (appState.tick === 0) {
       loadSnapshot({ force: false });
     } else {
+      renderTodayPanel();
       updateSyncText();
     }
   }, 1000);
 }
 
 function renderApp() {
+  renderTodayPanel();
   renderStatusBar();
   renderGroups();
   renderBracket();
@@ -144,6 +146,133 @@ function renderStatusBar() {
   document.querySelector("#metricVenues").textContent = (appData.venues || []).length;
   document.querySelector("#metricLive").textContent = live.length;
   document.querySelector("#metricFinished").textContent = finished.length;
+}
+
+function renderTodayPanel() {
+  const container = document.querySelector("#todayPanel");
+  const confidence = document.querySelector("#dataConfidence");
+  if (!container || !confidence) return;
+
+  const todaySet = getTodaySet();
+  container.innerHTML = todaySet.featured
+    ? todayMatchCard(todaySet.featured, todaySet.fixtures, todaySet.mode)
+    : emptyState("No fixtures are available yet.");
+  confidence.innerHTML = dataConfidenceCard();
+}
+
+function getTodaySet() {
+  const fixtures = (appData.allFixtures || [])
+    .slice()
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  const now = new Date();
+  const todayKey = localDateKey(now, appState.timezone);
+  const todaysFixtures = fixtures.filter((fixture) => localDateKey(fixture.kickoff, appState.timezone) === todayKey);
+  const featuredToday =
+    todaysFixtures.find((fixture) => fixture.status === "live") ||
+    todaysFixtures.find((fixture) => fixture.status === "scheduled") ||
+    todaysFixtures[todaysFixtures.length - 1];
+
+  if (featuredToday) {
+    return { featured: featuredToday, fixtures: todaysFixtures, mode: "today" };
+  }
+
+  const nextFixture =
+    fixtures.find((fixture) => fixture.status === "live") ||
+    fixtures.find((fixture) => fixture.status === "scheduled" && new Date(fixture.kickoff) >= now) ||
+    fixtures.find((fixture) => fixture.status === "scheduled") ||
+    fixtures[fixtures.length - 1];
+
+  return { featured: nextFixture, fixtures: nextFixture ? [nextFixture] : [], mode: "next" };
+}
+
+function todayMatchCard(fixture, fixtures, mode) {
+  const home = labelFor(fixture.home);
+  const away = labelFor(fixture.away);
+  const venue = venueById.get(fixture.venue) || {};
+  const confidence = getDataConfidence();
+  const status = fixtureStatusLabel(fixture);
+  const tone = statusTone(fixture);
+  const title = mode === "today"
+    ? fixtures.length === 1 ? "Today's match" : `${fixtures.length} matches today`
+    : "Next match";
+  const rail = fixtures.length > 1 ? `
+    <div class="today-rail" aria-label="All matches today">
+      ${fixtures.map(todayRailItem).join("")}
+    </div>
+  ` : "";
+
+  return `
+    <article class="today-card ${tone}">
+      <div class="today-main">
+        <div class="today-copy">
+          <span class="eyebrow">${escapeHtml(title)}</span>
+          <h2>${flag(home)}${escapeHtml(home.name)} <span class="versus-word">v</span> ${escapeHtml(away.name)}${flag(away, "right")}</h2>
+          <p>${escapeHtml(matchStageText(fixture))} at ${escapeHtml(venue.name || "Venue TBC")}</p>
+        </div>
+        <div class="countdown-tile">
+          <span>${escapeHtml(status)}</span>
+          <strong>${escapeHtml(formatCountdown(fixture))}</strong>
+          <small>${escapeHtml(formatFullDate(fixture.kickoff))}</small>
+        </div>
+      </div>
+
+      <div class="today-scoreboard">
+        <div class="today-team">
+          <span>${flag(home)}</span>
+          <strong>${escapeHtml(home.name)}</strong>
+          <small>${escapeHtml(home.short)}</small>
+        </div>
+        <div class="today-score">
+          <strong>${escapeHtml(scoreText(fixture))}</strong>
+          <span>${escapeHtml(status)}</span>
+        </div>
+        <div class="today-team is-away">
+          <span>${flag(away)}</span>
+          <strong>${escapeHtml(away.name)}</strong>
+          <small>${escapeHtml(away.short)}</small>
+        </div>
+      </div>
+
+      <dl class="today-details">
+        <div><dt>Kickoff</dt><dd>${escapeHtml(formatTime(fixture.kickoff))}</dd></div>
+        <div><dt>Stadium</dt><dd>${escapeHtml(venue.city || "TBC")}</dd></div>
+        <div><dt>Venue time</dt><dd>${escapeHtml(formatVenueTime(fixture.kickoff, venue.tz))}</dd></div>
+        <div><dt>Source</dt><dd>${escapeHtml(confidence.short)}</dd></div>
+      </dl>
+      ${rail}
+    </article>
+  `;
+}
+
+function todayRailItem(fixture) {
+  const home = labelFor(fixture.home);
+  const away = labelFor(fixture.away);
+  const venue = venueById.get(fixture.venue) || {};
+
+  return `
+    <div class="today-rail-item ${statusTone(fixture)}">
+      <span>${escapeHtml(formatTime(fixture.kickoff))}</span>
+      <strong>${flag(home)}${escapeHtml(home.short)} ${escapeHtml(scoreText(fixture))} ${escapeHtml(away.short)}${flag(away, "right")}</strong>
+      <small>${escapeHtml(venue.city || "TBC")}</small>
+    </div>
+  `;
+}
+
+function dataConfidenceCard() {
+  const confidence = getDataConfidence();
+  const details = confidence.details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("");
+
+  return `
+    <div class="confidence-shell ${confidence.tone}">
+      <span class="confidence-dot" aria-hidden="true"></span>
+      <div>
+        <span class="eyebrow">Data confidence</span>
+        <h2>${escapeHtml(confidence.title)}</h2>
+        <p>${escapeHtml(confidence.summary)}</p>
+      </div>
+      <ul>${details}</ul>
+    </div>
+  `;
 }
 
 function renderGroups() {
@@ -241,19 +370,23 @@ function statusCard(fixture, isLive) {
   const home = labelFor(fixture.home);
   const away = labelFor(fixture.away);
   const venue = venueById.get(fixture.venue) || {};
-  const statusText = isLive
-    ? `${formatShortDate(fixture.kickoff)} · ${fixture.minute ? `${fixture.minute}' ` : ""}live`
-    : `${formatShortDate(fixture.kickoff)} · ${formatTime(fixture.kickoff)}`;
+  const statusText = isLive ? fixtureStatusLabel(fixture) : formatTime(fixture.kickoff);
 
   return `
-    <article class="status-card ${isLive ? "is-live" : ""}">
-      <div class="status-kicker">${escapeHtml(statusText)}</div>
+    <article class="status-card ${statusTone(fixture)}">
+      <div class="status-top">
+        <span>${escapeHtml(formatShortDate(fixture.kickoff))}</span>
+        <b>${escapeHtml(statusText)}</b>
+      </div>
       <div class="status-match">
         <span>${flag(home)}${escapeHtml(home.short)}</span>
         <strong>${escapeHtml(scoreText(fixture))}</strong>
         <span>${escapeHtml(away.short)}${flag(away, "right")}</span>
       </div>
-      <div class="status-meta">${escapeHtml(fixture.stage)}${fixture.group ? ` ${escapeHtml(fixture.group)}` : ""} · ${escapeHtml(venue.city || "TBC")}</div>
+      <div class="status-meta">
+        <span>${escapeHtml(matchStageText(fixture))}</span>
+        <span>${escapeHtml(venue.city || "TBC")}</span>
+      </div>
     </article>
   `;
 }
@@ -261,7 +394,10 @@ function statusCard(fixture, isLive) {
 function roundColumn(title, fixtures) {
   return `
     <section class="round-column" aria-label="${escapeHtml(title)}">
-      <h3>${escapeHtml(title)}</h3>
+      <header class="round-title">
+        <h3>${escapeHtml(title)}</h3>
+        <span>${escapeHtml(formatRoundRange(fixtures))}</span>
+      </header>
       <div class="round-stack">${fixtures.map(knockoutCard).join("")}</div>
     </section>
   `;
@@ -286,11 +422,14 @@ function knockoutCard(fixture) {
 }
 
 function slotRow(teamOrSlot, score) {
-  const label = labelFor(teamOrSlot);
+  const label = slotLabelFor(teamOrSlot);
+  const pendingClass = teamById.has(teamOrSlot) ? "" : "is-pending";
+  const scoreClass = score === null || score === undefined ? "is-empty" : "";
+
   return `
-    <div class="slot-row">
+    <div class="slot-row ${pendingClass}">
       <span>${flag(label)}${escapeHtml(label.name)}</span>
-      <span class="score-box">${score ?? ""}</span>
+      <span class="score-box ${scoreClass}">${score ?? ""}</span>
     </div>
   `;
 }
@@ -299,21 +438,24 @@ function fixtureRow(fixture) {
   const home = labelFor(fixture.home);
   const away = labelFor(fixture.away);
   const venue = venueById.get(fixture.venue) || {};
-  const status = fixture.status === "live" ? `${fixture.minute ? `${fixture.minute}'` : "Live"}` : fixture.status;
-  const dateStatus = `${formatShortDate(fixture.kickoff)} · ${status}`;
+  const status = fixtureStatusLabel(fixture);
 
   return `
-    <article class="fixture-row ${fixture.status === "live" ? "is-live" : ""}">
+    <article class="fixture-row ${statusTone(fixture)}">
       <div class="fixture-time">
+        <span>${escapeHtml(formatShortDate(fixture.kickoff))}</span>
         <strong>${escapeHtml(formatTime(fixture.kickoff))}</strong>
-        <span>${escapeHtml(dateStatus)}</span>
       </div>
       <div class="fixture-teams">
         <span>${flag(home)}${escapeHtml(home.name)}</span>
         <b>${escapeHtml(scoreText(fixture))}</b>
         <span>${escapeHtml(away.name)}${flag(away, "right")}</span>
       </div>
-      <div class="fixture-stage">${escapeHtml(fixture.stage)}${fixture.group ? ` · Group ${escapeHtml(fixture.group)}` : ""}</div>
+      <div class="fixture-stage">
+        <span class="fixture-status-pill">${escapeHtml(status)}</span>
+        <div class="fixture-meta-line"><b>Round</b><span>${escapeHtml(fixtureRoundLabel(fixture))}</span></div>
+        <div class="fixture-meta-line"><b>Game week</b><span>${escapeHtml(fixtureGameWeekLabel(fixture))}</span></div>
+      </div>
       <div class="fixture-venue">${escapeHtml(venue.name || "Venue TBC")}<span>${escapeHtml(venue.city || "")}</span></div>
     </article>
   `;
@@ -357,7 +499,18 @@ function matchesSearch(fixture) {
   const home = labelFor(fixture.home);
   const away = labelFor(fixture.away);
   const venue = venueById.get(fixture.venue) || {};
-  const haystack = `${fixture.stage} ${fixture.group || ""} ${home.name} ${home.short} ${away.name} ${away.short} ${venue.name || ""} ${venue.city || ""}`.toLowerCase();
+  const haystack = [
+    fixture.stage,
+    fixture.group || "",
+    fixtureRoundLabel(fixture),
+    fixtureGameWeekLabel(fixture),
+    home.name,
+    home.short,
+    away.name,
+    away.short,
+    venue.name || "",
+    venue.city || ""
+  ].join(" ").toLowerCase();
   return haystack.includes(appState.search);
 }
 
@@ -388,6 +541,133 @@ function scoreText(fixture) {
   return `${fixture.homeScore}-${fixture.awayScore}`;
 }
 
+function matchStageText(fixture) {
+  if (fixture.stage === "Group") {
+    return `Group ${fixture.group}${fixture.matchday ? ` · Matchday ${fixture.matchday}` : ""}`;
+  }
+
+  return fixture.stage;
+}
+
+function fixtureRoundLabel(fixture) {
+  if (fixture.stage === "Group") return `Group ${fixture.group}`;
+  return fixture.stage;
+}
+
+function fixtureGameWeekLabel(fixture) {
+  if (fixture.stage === "Group") return fixture.matchday ? `GW ${fixture.matchday}` : "GW TBC";
+  return "Knockout";
+}
+
+function fixtureStatusLabel(fixture) {
+  if (fixture.status === "live") return fixture.minute ? `${fixture.minute}' live` : "Live";
+  if (fixture.status === "finished") return "Final";
+  if (fixture.status === "postponed") return "Postponed";
+  return "Scheduled";
+}
+
+function statusTone(fixture) {
+  if (fixture.status === "live") return "is-live";
+  if (fixture.status === "finished") return "is-finished";
+  if (fixture.status === "postponed") return "is-postponed";
+  return "is-scheduled";
+}
+
+function slotLabelFor(value) {
+  const team = teamById.get(value);
+  if (team) {
+    return { name: team.name, short: team.shortName, flag: team.flag };
+  }
+
+  const raw = String(value || "TBC");
+  return { name: formatSlotName(raw), short: raw, flag: "" };
+}
+
+function formatSlotName(value) {
+  const winner = value.match(/^1([A-L])$/);
+  if (winner) return `Winner Group ${winner[1]}`;
+
+  const runnerUp = value.match(/^2([A-L])$/);
+  if (runnerUp) return `Runner-up Group ${runnerUp[1]}`;
+
+  const thirdPlace = value.match(/^3([A-L](?:\/[A-L])*)$/);
+  if (thirdPlace) return `Best third ${thirdPlace[1]}`;
+
+  const matchWinner = value.match(/^W(\d+)$/);
+  if (matchWinner) return `Winner Match ${matchWinner[1]}`;
+
+  const matchLoser = value.match(/^L(\d+)$/);
+  if (matchLoser) return `Loser Match ${matchLoser[1]}`;
+
+  return value;
+}
+
+function formatRoundRange(fixtures) {
+  const sorted = fixtures
+    .filter((fixture) => fixture.kickoff)
+    .slice()
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  if (!sorted.length) return "Dates TBC";
+
+  const first = formatShortDate(sorted[0].kickoff);
+  const last = formatShortDate(sorted[sorted.length - 1].kickoff);
+  return first === last ? first : `${first} - ${last}`;
+}
+
+function getDataConfidence() {
+  const errors = appState.dataQuality.errors || [];
+  const warnings = appState.warnings || [];
+  const hasMissingKey = warnings.some((warning) => warning.includes("RAPIDAPI_KEY"));
+
+  if (errors.length) {
+    return {
+      tone: "is-error",
+      title: "Data blocked",
+      short: "Data checks blocked",
+      summary: errors[0],
+      details: ["Suspicious live data is not merged.", "The verified local schedule remains available."]
+    };
+  }
+
+  if (appState.dataMode === "live-provider-merged") {
+    return {
+      tone: "is-live",
+      title: "Live provider connected",
+      short: "Live provider verified",
+      summary: "Scores update only after team, group, and kickoff checks pass.",
+      details: [`Refresh every ${appState.refreshEvery}s.`, "Schedule and live data are cross-checked."]
+    };
+  }
+
+  if (hasMissingKey) {
+    return {
+      tone: "is-verified",
+      title: "Verified schedule mode",
+      short: "Verified schedule",
+      summary: "The full tournament schedule is source-checked. Live scores need the provider key.",
+      details: ["No unverified live scores are shown.", `Refresh every ${appState.refreshEvery}s.`]
+    };
+  }
+
+  if (warnings.length || appState.dataQuality.level === "warning") {
+    return {
+      tone: "is-warning",
+      title: "Provider delayed",
+      short: "Schedule fallback active",
+      summary: warnings[0] || "Using the verified schedule while live data is delayed.",
+      details: ["The app rejects ambiguous provider events.", "Refresh continues automatically."]
+    };
+  }
+
+  return {
+    tone: "is-verified",
+    title: "Verified schedule",
+    short: "Verified schedule",
+    summary: "All fixtures, teams, venues, and opening-day checks are passing.",
+    details: [`Refresh every ${appState.refreshEvery}s.`, "Live scores are merged only after validation."]
+  };
+}
+
 function groupFixtures(groupId) {
   return (appData.groupFixtures || []).filter((fixture) => fixture.group === groupId);
 }
@@ -416,8 +696,8 @@ function updateSyncText(override) {
     second: "2-digit"
   }).format(appState.lastSync);
   const next = Math.max(0, appState.refreshEvery - appState.tick);
-  const qualityLabel = dataQualityLabel();
-  const source = [qualityLabel, appState.dataSource, mostImportantDataNotice()].filter(Boolean).join(" · ");
+  const confidence = getDataConfidence();
+  const source = [confidence.short, appState.dataSource, mostImportantDataNotice()].filter(Boolean).join(" · ");
 
   document.querySelector("#syncText").textContent = override || `Last sync ${sync}`;
   document.querySelector("#refreshText").textContent = `${next}s`;
@@ -425,10 +705,7 @@ function updateSyncText(override) {
 }
 
 function dataQualityLabel() {
-  if (appState.dataQuality.level === "error") return "Data blocked";
-  if (appState.dataMode === "live-provider-merged") return "Live provider verified";
-  if (appState.dataQuality.level === "verified") return "Verified schedule";
-  return "Schedule check warning";
+  return getDataConfidence().short;
 }
 
 function mostImportantDataNotice() {
@@ -462,6 +739,60 @@ function formatShortDate(value) {
     month: "short",
     day: "numeric"
   }).format(new Date(value));
+}
+
+function formatFullDate(value) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: appState.timezone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatVenueTime(value, timeZone) {
+  if (!timeZone) return "Venue TBC";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short"
+  }).format(new Date(value));
+}
+
+function formatCountdown(fixture) {
+  if (fixture.status === "live") return "Live now";
+  if (fixture.status === "finished") return "Final";
+  if (fixture.status === "postponed") return "Postponed";
+
+  const diff = new Date(fixture.kickoff).getTime() - Date.now();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diff < -2 * hour) return "Awaiting live data";
+  if (diff <= 0) return "Kickoff window";
+
+  const days = Math.floor(diff / day);
+  const hours = Math.floor((diff % day) / hour);
+  const minutes = Math.max(1, Math.floor((diff % hour) / minute));
+
+  if (days > 0) return `Starts in ${days}d ${hours}h`;
+  if (hours > 0) return `Starts in ${hours}h ${minutes}m`;
+  return `Starts in ${minutes}m`;
+}
+
+function localDateKey(value, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date(value));
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
 }
 
 function groupBy(items, getKey) {
