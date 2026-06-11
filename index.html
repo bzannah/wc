@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>World Cup 2026 Live Chart</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#chart" aria-label="World Cup 2026 live chart">
+          <span class="brand-mark">26</span>
+          <span>
+            <span class="brand-kicker">World Cup 2026</span>
+            <strong>Live Tournament Chart</strong>
+          </span>
+        </a>
+
+        <nav class="view-switcher" aria-label="Views">
+          <button class="is-active" data-view="chart" type="button">Chart</button>
+          <button data-view="fixtures" type="button">Fixtures</button>
+          <button data-view="groups" type="button">Groups</button>
+        </nav>
+
+        <div class="top-controls">
+          <label class="search-shell" for="search">
+            <span aria-hidden="true">⌕</span>
+            <input id="search" type="search" placeholder="Team, group, venue">
+          </label>
+
+          <label class="select-shell" for="timezone">
+            <span>Time</span>
+            <select id="timezone">
+              <option value="Europe/London">London</option>
+              <option value="America/New_York">New York</option>
+              <option value="America/Mexico_City">Mexico City</option>
+              <option value="America/Los_Angeles">Los Angeles</option>
+            </select>
+          </label>
+
+          <label class="select-shell" for="refresh">
+            <span>Refresh</span>
+            <select id="refresh">
+              <option value="30">30s</option>
+              <option value="60" selected>60s</option>
+              <option value="120">2m</option>
+            </select>
+          </label>
+
+          <button class="icon-button refresh-button" id="refreshNow" type="button" aria-label="Refresh now" title="Refresh now">
+            ↻
+          </button>
+        </div>
+      </header>
+
+      <section class="pulse-panel" aria-label="Tournament status">
+        <div class="hero-title">
+          <span class="live-dot"></span>
+          <p>Opening day command center</p>
+          <h1>Every group, every fixture, every route to the final.</h1>
+        </div>
+
+        <div class="metrics" aria-label="Tournament totals">
+          <div><strong id="metricTeams">48</strong><span>Teams</span></div>
+          <div><strong id="metricFixtures">104</strong><span>Fixtures</span></div>
+          <div><strong id="metricVenues">16</strong><span>Venues</span></div>
+          <div><strong id="metricLive">0</strong><span>Live</span></div>
+          <div><strong id="metricFinished">0</strong><span>Finals</span></div>
+        </div>
+
+        <div class="sync-chip">
+          <span id="syncText">Last sync --:--:--</span>
+          <small id="dataSource">Local model</small>
+          <b id="refreshText">60s</b>
+        </div>
+
+        <div class="refresh-meter" aria-hidden="true"></div>
+      </section>
+
+      <section class="live-strip" id="liveStrip" aria-label="Live and next matches"></section>
+
+      <main class="chart-layout" id="chart">
+        <aside class="groups-rail" id="leftGroups" aria-label="Groups A to F"></aside>
+
+        <section class="center-stage" aria-label="Knockout chart">
+          <div class="chart-header">
+            <div>
+              <span class="eyebrow">Knockout path</span>
+              <h2>Round of 32 to final</h2>
+            </div>
+            <div class="legend">
+              <span><i class="legend-live"></i>Live</span>
+              <span><i class="legend-next"></i>Upcoming</span>
+              <span><i class="legend-lock"></i>Slot</span>
+            </div>
+          </div>
+
+          <div class="bracket-board">
+            <div class="bracket-grid" id="bracketGrid"></div>
+          </div>
+
+          <section class="third-place-card" aria-label="Best third-place ranking">
+            <header>
+              <span class="eyebrow">Qualification watch</span>
+              <h2>Best third-place race</h2>
+            </header>
+            <table>
+              <thead>
+                <tr><th>#</th><th>Group</th><th>Team</th><th>Pts</th><th>GD</th></tr>
+              </thead>
+              <tbody id="thirdPlaceTable"></tbody>
+            </table>
+          </section>
+        </section>
+
+        <aside class="groups-rail" id="rightGroups" aria-label="Groups G to L"></aside>
+      </main>
+
+      <section class="fixtures-panel" id="fixtures" aria-label="All fixtures">
+        <header class="section-head">
+          <div>
+            <span class="eyebrow">Fixtures</span>
+            <h2>All matches</h2>
+          </div>
+          <strong><span id="fixtureCount">104</span> shown</strong>
+        </header>
+        <div class="fixture-list" id="fixtureList"></div>
+      </section>
+
+      <section class="groups-panel" id="groups" aria-label="All groups">
+        <header class="section-head">
+          <div>
+            <span class="eyebrow">Groups</span>
+            <h2>All group tables</h2>
+          </div>
+          <strong>Top two plus best eight third-place teams advance</strong>
+        </header>
+        <div class="groups-grid" id="groupsGrid"></div>
+      </section>
+    </div>
+
+    <script src="./worldcup-data.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

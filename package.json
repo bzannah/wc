@@ -1,0 +1,11 @@
+{
+  "name": "world-cup-2026-chart-mockup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "World Cup 2026 live chart implementation with a server-side Sofascore API boundary.",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "test": "node test-data.js && node --test test-data-service.js"
+  }
+}
