@@ -1,4 +1,4 @@
-const staticData = require("./worldcup-data.js");
+const staticData = require("./public/worldcup-data.js");
 const {
   canMergeProviderEvent,
   validateTournamentData

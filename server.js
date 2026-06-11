@@ -4,6 +4,7 @@ const path = require("node:path");
 const { getProviderConfigSummary, getWorldCupSnapshot } = require("./provider-client.js");
 
 const root = __dirname;
+const staticRoot = path.join(root, "public");
 
 loadEnvFile(".env");
 loadEnvFile(".env.local");
@@ -46,9 +47,9 @@ server.listen(port, host, () => {
 
 function serveStatic(urlPath, response) {
   const cleanPath = decodeURIComponent(urlPath === "/" ? "/index.html" : urlPath);
-  const filePath = path.normalize(path.join(root, cleanPath));
+  const filePath = path.normalize(path.join(staticRoot, cleanPath));
 
-  if (!filePath.startsWith(root)) {
+  if (!filePath.startsWith(staticRoot)) {
     return sendText(response, 403, "Forbidden");
   }
 

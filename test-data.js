@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const data = require("./worldcup-data.js");
+const data = require("./public/worldcup-data.js");
 
 const teams = data.groups.flatMap((group) => group.teams);
 const fixtureIds = new Set(data.allFixtures.map((fixture) => fixture.id));
