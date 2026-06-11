@@ -113,7 +113,6 @@ function mergeSofascoreEvents(data, events, now = new Date()) {
     const normalized = normalizeSofascoreEvent(event, teamLookup, venueLookup, data.venues, now);
     if (!normalized.home || !normalized.away) {
       report.rejected += 1;
-      report.warnings.push(`Rejected provider event ${normalized.providerId || "unknown"} because teams could not be matched.`);
       continue;
     }
 

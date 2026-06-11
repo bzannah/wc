@@ -784,6 +784,7 @@ function dataQualityLabel() {
 function mostImportantDataNotice() {
   if (appState.dataQuality.errors?.length) return appState.dataQuality.errors[0];
   if (["limit_reached", "near_limit"].includes(appState.providerQuota?.status)) return appState.providerQuota.message;
+  if (appState.dataMode === "live-provider-merged") return "";
   if (appState.providerQuota?.status === "path_not_configured") return "verified schedule mode";
   if (appState.dataMode === "schedule-only" && appState.warnings.some((warning) => warning.includes("RAPIDAPI_KEY"))) {
     return "live scores unavailable";

@@ -87,6 +87,43 @@ test("provider event with reversed teams keeps canonical fixture order", () => {
   assert.equal(fixture.awayScore, 0);
 });
 
+test("global live feed ignores unrelated football events without user-facing warnings", () => {
+  const snapshot = createWorldCupSnapshot({
+    now: new Date("2026-06-11T20:00:00Z"),
+    providerPayloads: [
+      {
+        events: [
+          {
+            id: 9100,
+            tournament: { name: "Club Friendly" },
+            homeTeam: { name: "Arsenal" },
+            awayTeam: { name: "Chelsea" },
+            homeScore: { current: 1 },
+            awayScore: { current: 1 },
+            status: { type: "inprogress" },
+            startTimestamp: 1781204400
+          },
+          {
+            id: 9101,
+            tournament: { name: "FIFA World Cup, Group A" },
+            homeTeam: { name: "Mexico" },
+            awayTeam: { name: "South Africa" },
+            homeScore: { current: 1 },
+            awayScore: { current: 0 },
+            status: { type: "inprogress" },
+            startTimestamp: 1781204400
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(snapshot.source, "live");
+  assert.equal(snapshot.providerMerge.merged, 1);
+  assert.equal(snapshot.providerMerge.rejected, 1);
+  assert.doesNotMatch(snapshot.warnings.join(" "), /teams could not be matched/);
+});
+
 test("provider event without group id is rejected instead of merged", () => {
   const snapshot = createWorldCupSnapshot({
     now: new Date("2026-06-11T20:00:00Z"),
