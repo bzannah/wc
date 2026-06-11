@@ -26,16 +26,17 @@ function withEnv(overrides, run) {
   }
 }
 
-test("getProviderPaths does not guess a non-existent live endpoint", () => {
+test("getProviderPaths uses the Sofascore live football endpoint by default", () => {
   withEnv({
     SOFASCORE_PATHS: undefined,
     SOFASCORE_SEASON_ID: undefined
   }, () => {
-    assert.deepEqual(getProviderPaths(), []);
+    assert.deepEqual(getProviderPaths(), ["/tournaments/get-live-events?sport=football"]);
+    assert.equal(getProviderPaths().includes("/matches/get-live"), false);
   });
 });
 
-test("provider summary requires both API key and endpoint paths", () => {
+test("provider summary is ready when API key can use the default live endpoint", () => {
   withEnv({
     RAPIDAPI_KEY: "test-key",
     SOFASCORE_PATHS: undefined,
@@ -43,8 +44,17 @@ test("provider summary requires both API key and endpoint paths", () => {
   }, () => {
     const summary = getProviderConfigSummary();
     assert.equal(summary.liveProviderConfigured, true);
-    assert.equal(summary.liveProviderReady, false);
-    assert.deepEqual(summary.providerPaths, []);
+    assert.equal(summary.liveProviderReady, true);
+    assert.deepEqual(summary.providerPaths, ["/tournaments/get-live-events?sport=football"]);
+  });
+});
+
+test("getProviderPaths allows explicit endpoint overrides", () => {
+  withEnv({
+    SOFASCORE_PATHS: "/custom/a,/custom/b?sport=football",
+    SOFASCORE_SEASON_ID: undefined
+  }, () => {
+    assert.deepEqual(getProviderPaths(), ["/custom/a", "/custom/b?sport=football"]);
   });
 });
 

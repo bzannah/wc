@@ -2,6 +2,7 @@ const { createStaticSnapshot, createWorldCupSnapshot } = require("./data-service
 
 const DEFAULT_REFRESH_SECONDS = 60;
 const DEFAULT_LIMIT_WARNING_THRESHOLD = 10;
+const DEFAULT_LIVE_PROVIDER_PATH = "/tournaments/get-live-events?sport=football";
 
 let snapshotCache = null;
 let snapshotCacheTime = 0;
@@ -93,17 +94,7 @@ function getProviderPaths() {
   const explicit = splitList(process.env.SOFASCORE_PATHS);
   if (explicit.length > 0) return explicit;
 
-  const uniqueTournamentId = process.env.SOFASCORE_UNIQUE_TOURNAMENT_ID || "16";
-  const seasonId = process.env.SOFASCORE_SEASON_ID;
-
-  if (seasonId) {
-    return [
-      `/tournaments/get-events?uniqueTournamentId=${encodeURIComponent(uniqueTournamentId)}&seasonId=${encodeURIComponent(seasonId)}`,
-      `/tournaments/get-matches?uniqueTournamentId=${encodeURIComponent(uniqueTournamentId)}&seasonId=${encodeURIComponent(seasonId)}`
-    ];
-  }
-
-  return [];
+  return [DEFAULT_LIVE_PROVIDER_PATH];
 }
 
 async function fetchRapidApiJson(providerPath) {
