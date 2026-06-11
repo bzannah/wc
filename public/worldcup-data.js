@@ -1,21 +1,21 @@
 const WC_DATA = (() => {
   const venues = [
-    { id: "mexico-city", name: "Mexico City Stadium", city: "Mexico City", country: "Mexico", tz: "America/Mexico_City" },
-    { id: "guadalajara", name: "Guadalajara Stadium", city: "Guadalajara", country: "Mexico", tz: "America/Mexico_City" },
-    { id: "monterrey", name: "Monterrey Stadium", city: "Monterrey", country: "Mexico", tz: "America/Monterrey" },
-    { id: "toronto", name: "Toronto Stadium", city: "Toronto", country: "Canada", tz: "America/Toronto" },
-    { id: "vancouver", name: "Vancouver Stadium", city: "Vancouver", country: "Canada", tz: "America/Vancouver" },
-    { id: "la", name: "Los Angeles Stadium", city: "Los Angeles", country: "United States", tz: "America/Los_Angeles" },
-    { id: "sf", name: "San Francisco Bay Area Stadium", city: "San Francisco Bay Area", country: "United States", tz: "America/Los_Angeles" },
-    { id: "seattle", name: "Seattle Stadium", city: "Seattle", country: "United States", tz: "America/Los_Angeles" },
-    { id: "dallas", name: "Dallas Stadium", city: "Dallas", country: "United States", tz: "America/Chicago" },
-    { id: "houston", name: "Houston Stadium", city: "Houston", country: "United States", tz: "America/Chicago" },
-    { id: "kansas-city", name: "Kansas City Stadium", city: "Kansas City", country: "United States", tz: "America/Chicago" },
-    { id: "atlanta", name: "Atlanta Stadium", city: "Atlanta", country: "United States", tz: "America/New_York" },
-    { id: "miami", name: "Miami Stadium", city: "Miami", country: "United States", tz: "America/New_York" },
-    { id: "boston", name: "Boston Stadium", city: "Boston", country: "United States", tz: "America/New_York" },
-    { id: "philadelphia", name: "Philadelphia Stadium", city: "Philadelphia", country: "United States", tz: "America/New_York" },
-    { id: "new-jersey", name: "New York New Jersey Stadium", city: "New Jersey", country: "United States", tz: "America/New_York" }
+    { id: "mexico-city", name: "Estadio Azteca", city: "Mexico City", country: "Mexico", tz: "America/Mexico_City", aliases: ["Mexico City Stadium", "Estadio Ciudad de Mexico", "Estadio Ciudad de México", "Estadio Banorte"] },
+    { id: "guadalajara", name: "Estadio Akron", city: "Guadalajara", country: "Mexico", tz: "America/Mexico_City", aliases: ["Guadalajara Stadium", "Estadio Guadalajara"] },
+    { id: "monterrey", name: "Estadio BBVA", city: "Monterrey", country: "Mexico", tz: "America/Monterrey", aliases: ["Monterrey Stadium", "Estadio Monterrey"] },
+    { id: "toronto", name: "BMO Field", city: "Toronto", country: "Canada", tz: "America/Toronto", aliases: ["Toronto Stadium"] },
+    { id: "vancouver", name: "BC Place", city: "Vancouver", country: "Canada", tz: "America/Vancouver", aliases: ["Vancouver Stadium"] },
+    { id: "la", name: "SoFi Stadium", city: "Los Angeles", country: "United States", tz: "America/Los_Angeles", aliases: ["Los Angeles Stadium"] },
+    { id: "sf", name: "Levi's Stadium", city: "San Francisco Bay Area", country: "United States", tz: "America/Los_Angeles", aliases: ["San Francisco Bay Area Stadium", "Bay Area Stadium"] },
+    { id: "seattle", name: "Lumen Field", city: "Seattle", country: "United States", tz: "America/Los_Angeles", aliases: ["Seattle Stadium"] },
+    { id: "dallas", name: "AT&T Stadium", city: "Dallas", country: "United States", tz: "America/Chicago", aliases: ["Dallas Stadium"] },
+    { id: "houston", name: "NRG Stadium", city: "Houston", country: "United States", tz: "America/Chicago", aliases: ["Houston Stadium"] },
+    { id: "kansas-city", name: "Arrowhead Stadium", city: "Kansas City", country: "United States", tz: "America/Chicago", aliases: ["Kansas City Stadium", "GEHA Field at Arrowhead Stadium"] },
+    { id: "atlanta", name: "Mercedes-Benz Stadium", city: "Atlanta", country: "United States", tz: "America/New_York", aliases: ["Atlanta Stadium"] },
+    { id: "miami", name: "Hard Rock Stadium", city: "Miami", country: "United States", tz: "America/New_York", aliases: ["Miami Stadium"] },
+    { id: "boston", name: "Gillette Stadium", city: "Boston", country: "United States", tz: "America/New_York", aliases: ["Boston Stadium"] },
+    { id: "philadelphia", name: "Lincoln Financial Field", city: "Philadelphia", country: "United States", tz: "America/New_York", aliases: ["Philadelphia Stadium"] },
+    { id: "new-jersey", name: "MetLife Stadium", city: "New York/New Jersey", country: "United States", tz: "America/New_York", aliases: ["New York New Jersey Stadium", "New York/New Jersey Stadium"] }
   ];
 
   const groups = [

@@ -238,7 +238,7 @@ function todayMatchCard(fixture, fixtures, mode) {
 
       <dl class="today-details">
         <div><dt>Kickoff</dt><dd>${escapeHtml(formatTime(fixture.kickoff))}</dd></div>
-        <div><dt>Stadium</dt><dd>${escapeHtml(venue.city || "TBC")}</dd></div>
+        <div><dt>Stadium</dt><dd>${escapeHtml(venueName(venue))}</dd></div>
         <div><dt>Venue time</dt><dd>${escapeHtml(formatVenueTime(fixture.kickoff, venue.tz))}</dd></div>
         <div><dt>Source</dt><dd>${escapeHtml(confidence.short)}</dd></div>
       </dl>
@@ -256,7 +256,7 @@ function todayRailItem(fixture) {
     <div class="today-rail-item ${statusTone(fixture)}">
       <span>${escapeHtml(formatTime(fixture.kickoff))}</span>
       <strong>${flag(home)}${escapeHtml(home.short)} ${escapeHtml(scoreText(fixture))} ${escapeHtml(away.short)}${flag(away, "right")}</strong>
-      <small>${escapeHtml(venue.city || "TBC")}</small>
+      <small>${escapeHtml(venueName(venue))}</small>
     </div>
   `;
 }
@@ -388,7 +388,7 @@ function statusCard(fixture, isLive) {
       </div>
       <div class="status-meta">
         <span>${escapeHtml(matchStageText(fixture))}</span>
-        <span>${escapeHtml(venue.city || "TBC")}</span>
+        <span>${escapeHtml(venueName(venue))}</span>
       </div>
     </article>
   `;
@@ -419,7 +419,7 @@ function knockoutCard(fixture) {
       ${slotRow(fixture.home, fixture.homeScore)}
       <div class="versus">v</div>
       ${slotRow(fixture.away, fixture.awayScore)}
-      <div class="venue-line">${escapeHtml(venue.city || "Venue TBC")}</div>
+      <div class="venue-line">${escapeHtml(venueName(venue))}</div>
     </article>
   `;
 }
@@ -476,7 +476,7 @@ function miniFixture(fixture) {
     <div class="mini-fixture">
       <span>${escapeHtml(kicker)}</span>
       <strong>${escapeHtml(home.short)} ${escapeHtml(scoreText(fixture))} ${escapeHtml(away.short)}</strong>
-      <span>${escapeHtml(venue.city || "Venue TBC")}</span>
+      <span>${escapeHtml(venueName(venue))}</span>
     </div>
   `;
 }
@@ -522,9 +522,13 @@ function groupMatchesSearch(group, fixtures) {
   const teamText = group.teams.map((team) => `${team.name} ${team.shortName}`).join(" ");
   const fixtureText = fixtures.map((fixture) => {
     const venue = venueById.get(fixture.venue) || {};
-    return `${labelFor(fixture.home).name} ${labelFor(fixture.away).name} ${venue.city || ""}`;
+    return `${labelFor(fixture.home).name} ${labelFor(fixture.away).name} ${venue.name || ""} ${venue.city || ""}`;
   }).join(" ");
   return `${group.id} ${teamText} ${fixtureText}`.toLowerCase().includes(appState.search);
+}
+
+function venueName(venue) {
+  return venue?.name || "Venue TBC";
 }
 
 function labelFor(value) {

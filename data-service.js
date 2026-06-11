@@ -327,6 +327,9 @@ function buildVenueLookup(venues) {
   for (const venue of venues) {
     map.set(normalizeName(venue.name), venue.id);
     map.set(normalizeName(venue.city), venue.id);
+    for (const alias of venue.aliases || []) {
+      map.set(normalizeName(alias), venue.id);
+    }
   }
   return map;
 }

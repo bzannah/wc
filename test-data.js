@@ -29,6 +29,11 @@ const londonJune11 = data.groupFixtures.filter((fixture) => localDate(fixture.ki
 assert.equal(londonJune11.length, 1, "London/BST view should show exactly one fixture on 11 June 2026");
 assert.equal(londonJune11[0].home, "MEX", "Opening fixture home team should be Mexico");
 assert.equal(londonJune11[0].away, "RSA", "Opening fixture away team should be South Africa");
+assert.equal(
+  data.venues.find((venue) => venue.id === londonJune11[0].venue)?.name,
+  "Estadio Azteca",
+  "Opening fixture should show Estadio Azteca"
+);
 
 const londonJune12 = data.groupFixtures.filter((fixture) => localDate(fixture.kickoff, "Europe/London") === "2026-06-12");
 assert.equal(londonJune12.length, 2, "London/BST view should show two fixtures on 12 June 2026");
