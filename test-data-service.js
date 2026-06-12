@@ -118,6 +118,32 @@ test("half-time provider event does not show a runaway live minute", () => {
   assert.equal(snapshot.dataQuality.level, "verified");
 });
 
+test("stored final result is applied after a match leaves the live feed", () => {
+  const snapshot = createStaticSnapshot({
+    storedResults: {
+      fixtures: {
+        "GA-1": {
+          id: "GA-1",
+          status: "finished",
+          homeScore: 2,
+          awayScore: 0,
+          providerId: "15186710",
+          sourceUrl: "https://www.sofascore.com/mexico-south-africa"
+        }
+      }
+    }
+  });
+  const fixture = snapshot.groupFixtures.find((item) => item.id === "GA-1");
+  const groupA = snapshot.groups.find((group) => group.id === "A");
+
+  assert.equal(snapshot.source, "demo");
+  assert.equal(fixture.status, "finished");
+  assert.equal(fixture.homeScore, 2);
+  assert.equal(fixture.awayScore, 0);
+  assert.equal(groupA.teams[0].id, "MEX");
+  assert.equal(groupA.teams[0].points, 3);
+});
+
 test("global live feed ignores unrelated football events without user-facing warnings", () => {
   const snapshot = createWorldCupSnapshot({
     now: new Date("2026-06-11T20:00:00Z"),

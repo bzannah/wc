@@ -3,12 +3,14 @@ const {
   canMergeProviderEvent,
   validateTournamentData
 } = require("./data-quality.js");
+const { applyStoredResults } = require("./result-store.js");
 
 const SOFASCORE_PROVIDER = "Sofascore RapidAPI";
 
 function createStaticSnapshot(options = {}) {
   const now = options.now || new Date();
   const data = clone(staticData);
+  applyStoredResults(data, options.storedResults);
   recomputeStandings(data);
   const dataQuality = validateTournamentData(data);
   const warnings = [...(options.warnings || []), ...dataQuality.warnings];
@@ -37,6 +39,7 @@ function createWorldCupSnapshot(options = {}) {
   const providerPayloads = Array.isArray(options.providerPayloads) ? options.providerPayloads : [];
   const warnings = [...(options.warnings || [])];
   const data = clone(staticData);
+  applyStoredResults(data, options.storedResults);
   const events = providerPayloads.flatMap(extractEvents);
   let mergeReport = { merged: 0, rejected: 0, warnings: [] };
 

@@ -1,4 +1,8 @@
 const { createStaticSnapshot, createWorldCupSnapshot } = require("./data-service.js");
+const {
+  persistFinishedResults,
+  readStoredResults
+} = require("./result-store.js");
 
 const DEFAULT_REFRESH_SECONDS = 60;
 const DEFAULT_LIMIT_WARNING_THRESHOLD = 10;
@@ -23,6 +27,8 @@ async function getWorldCupSnapshot(options = {}) {
   let providerPayloads = [];
   let providerQuota = null;
   const providerPaths = getProviderPaths();
+  const stored = await readStoredResults();
+  if (stored.warning) warnings.push(stored.warning);
 
   if (process.env.RAPIDAPI_KEY) {
     if (providerPaths.length === 0) {
@@ -57,8 +63,16 @@ async function getWorldCupSnapshot(options = {}) {
   lastProviderQuota = providerQuota;
 
   snapshotCache = providerPayloads.length
-    ? createWorldCupSnapshot({ providerPayloads, refreshEvery, warnings, providerQuota })
-    : createStaticSnapshot({ refreshEvery, warnings, providerQuota });
+    ? createWorldCupSnapshot({ providerPayloads, refreshEvery, warnings, providerQuota, storedResults: stored.results })
+    : createStaticSnapshot({ refreshEvery, warnings, providerQuota, storedResults: stored.results });
+
+  const persistence = await persistFinishedResults(snapshotCache);
+  if (persistence.warning) snapshotCache.warnings.push(persistence.warning);
+  snapshotCache.resultStore = {
+    enabled: stored.enabled || persistence.enabled,
+    saved: persistence.saved,
+    updatedAt: stored.results.updatedAt || null
+  };
   snapshotCacheTime = now;
   return snapshotCache;
 }
@@ -126,6 +140,7 @@ function getProviderConfigSummary() {
   return {
     liveProviderConfigured: Boolean(process.env.RAPIDAPI_KEY),
     liveProviderReady: Boolean(process.env.RAPIDAPI_KEY && providerPaths.length > 0),
+    resultStoreConfigured: Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID),
     refreshEvery: getRefreshEvery(),
     providerPaths,
     providerQuota: lastProviderQuota
