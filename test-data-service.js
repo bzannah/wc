@@ -136,7 +136,9 @@ test("stored final result is applied after a match leaves the live feed", () => 
   const fixture = snapshot.groupFixtures.find((item) => item.id === "GA-1");
   const groupA = snapshot.groups.find((group) => group.id === "A");
 
-  assert.equal(snapshot.source, "demo");
+  assert.equal(snapshot.source, "stored");
+  assert.equal(snapshot.dataMode, "stored-results");
+  assert.equal(snapshot.storedResultCount, 1);
   assert.equal(fixture.status, "finished");
   assert.equal(fixture.homeScore, 2);
   assert.equal(fixture.awayScore, 0);

@@ -64,6 +64,7 @@ async function persistFinishedResults(snapshot) {
 function applyStoredResults(data, storedResults) {
   const store = normalizeStore(storedResults);
   const byId = new Map((data.allFixtures || []).map((fixture) => [fixture.id, fixture]));
+  let applied = 0;
 
   for (const result of Object.values(store.fixtures)) {
     if (!isUsableStoredResult(result)) continue;
@@ -78,9 +79,11 @@ function applyStoredResults(data, storedResults) {
       minute: null,
       sourceUrl: result.sourceUrl || fixture.sourceUrl
     });
+    applied += 1;
   }
 
   syncCollections(data);
+  return applied;
 }
 
 function collectFinishedResults(snapshot) {

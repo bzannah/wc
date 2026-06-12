@@ -652,6 +652,16 @@ function getDataConfidence() {
     };
   }
 
+  if (appState.dataMode === "stored-results") {
+    return {
+      tone: "is-verified",
+      title: "Stored results verified",
+      short: "Stored results",
+      summary: "Finished scores are loaded from durable storage after matches leave the live feed.",
+      details: ["Final scores remain visible after live coverage ends.", `Refresh every ${appState.refreshEvery}s.`, ...quotaDetailLines(appState.providerQuota)]
+    };
+  }
+
   if (hasMissingKey) {
     return {
       tone: "is-verified",

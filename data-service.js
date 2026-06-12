@@ -10,20 +10,21 @@ const SOFASCORE_PROVIDER = "Sofascore RapidAPI";
 function createStaticSnapshot(options = {}) {
   const now = options.now || new Date();
   const data = clone(staticData);
-  applyStoredResults(data, options.storedResults);
+  const storedResultCount = applyStoredResults(data, options.storedResults);
   recomputeStandings(data);
   const dataQuality = validateTournamentData(data);
   const warnings = [...(options.warnings || []), ...dataQuality.warnings];
 
   return {
     version: 1,
-    source: "demo",
-    dataMode: "schedule-only",
-    provider: "source-checked fallback schedule",
+    source: storedResultCount ? "stored" : "demo",
+    dataMode: storedResultCount ? "stored-results" : "schedule-only",
+    provider: storedResultCount ? "stored final results + source-checked fallback schedule" : "source-checked fallback schedule",
     lastUpdated: now.toISOString(),
     refreshEvery: Number(options.refreshEvery || 60),
     warnings,
     dataQuality,
+    storedResultCount,
     providerQuota: options.providerQuota || null,
     groups: data.groups,
     venues: data.venues,
@@ -39,7 +40,7 @@ function createWorldCupSnapshot(options = {}) {
   const providerPayloads = Array.isArray(options.providerPayloads) ? options.providerPayloads : [];
   const warnings = [...(options.warnings || [])];
   const data = clone(staticData);
-  applyStoredResults(data, options.storedResults);
+  const storedResultCount = applyStoredResults(data, options.storedResults);
   const events = providerPayloads.flatMap(extractEvents);
   let mergeReport = { merged: 0, rejected: 0, warnings: [] };
 
@@ -57,13 +58,14 @@ function createWorldCupSnapshot(options = {}) {
 
   return {
     version: 1,
-    source: hasLiveData ? "live" : "demo",
-    dataMode: hasLiveData ? "live-provider-merged" : "schedule-only",
-    provider: hasLiveData ? SOFASCORE_PROVIDER : "source-checked fallback schedule",
+    source: hasLiveData ? "live" : storedResultCount ? "stored" : "demo",
+    dataMode: hasLiveData ? "live-provider-merged" : storedResultCount ? "stored-results" : "schedule-only",
+    provider: hasLiveData ? SOFASCORE_PROVIDER : storedResultCount ? "stored final results + source-checked fallback schedule" : "source-checked fallback schedule",
     lastUpdated: now.toISOString(),
     refreshEvery,
     warnings,
     dataQuality,
+    storedResultCount,
     providerMerge: mergeReport,
     providerQuota: options.providerQuota || null,
     groups: data.groups,
