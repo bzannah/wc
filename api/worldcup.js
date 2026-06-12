@@ -8,7 +8,10 @@ module.exports = async function worldcup(request, response) {
     const refreshEvery = getProviderConfigSummary().refreshEvery;
 
     response.setHeader("Content-Type", "application/json; charset=utf-8");
-    response.setHeader("Cache-Control", `s-maxage=${Math.max(1, Math.floor(refreshEvery / 2))}, stale-while-revalidate=${refreshEvery}`);
+    response.setHeader(
+      "Cache-Control",
+      force ? "no-store" : `s-maxage=${Math.max(1, Math.floor(refreshEvery / 2))}, stale-while-revalidate=${refreshEvery}`
+    );
     response.status(200).send(JSON.stringify(snapshot));
   } catch (error) {
     response.setHeader("Content-Type", "application/json; charset=utf-8");
