@@ -2,10 +2,10 @@ let appData = cloneData(WC_DATA);
 let teamById = new Map();
 let venueById = new Map();
 
-// Mirrors the server's dynamic refresh policy: every second while a match is
-// live, every 45 minutes when nothing is in progress. The actual cadence is
+// Mirrors the server's dynamic refresh policy: every 30 seconds while a match
+// is live, every 45 minutes when nothing is in progress. The actual cadence is
 // driven by snapshot.refreshEvery; these are used for defaults and labelling.
-const LIVE_REFRESH_SECONDS = 1;
+const LIVE_REFRESH_SECONDS = 30;
 const IDLE_REFRESH_SECONDS = 45 * 60;
 
 const appState = {
@@ -104,11 +104,7 @@ async function loadSnapshot({ force }) {
 function startRefreshLoop() {
   window.setInterval(() => {
     appState.tick = (appState.tick + 1) % appState.refreshEvery;
-    // While live we poll every second, so keep the meter full to read as active
-    // instead of flat at 0%. Otherwise show progress toward the next refresh.
-    const progress = appState.refreshEvery <= LIVE_REFRESH_SECONDS
-      ? 100
-      : Math.round((appState.tick / appState.refreshEvery) * 100);
+    const progress = Math.round((appState.tick / appState.refreshEvery) * 100);
     document.documentElement.style.setProperty("--refresh-progress", `${progress}%`);
 
     if (appState.tick === 0) {
@@ -797,8 +793,8 @@ function isLiveRefresh() {
 }
 
 function refreshChipText() {
-  if (isLiveRefresh()) return "Live · 1s";
   const secondsLeft = Math.max(0, appState.refreshEvery - appState.tick);
+  if (isLiveRefresh()) return `Live · ${secondsLeft}s`;
   return `Next ${formatRefreshCountdown(secondsLeft)}`;
 }
 
@@ -811,7 +807,7 @@ function formatRefreshCountdown(seconds) {
 
 function refreshCadenceText() {
   return isLiveRefresh()
-    ? "Live scores refresh every second."
+    ? `Live scores refresh every ${LIVE_REFRESH_SECONDS} seconds.`
     : "Refreshes every 45 minutes between matches.";
 }
 

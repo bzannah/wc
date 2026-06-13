@@ -23,7 +23,7 @@ let lastProviderQuota = quotaStatus("unknown", {
 async function getWorldCupSnapshot(options = {}) {
   const now = Date.now();
 
-  // The freshness window tracks the cached snapshot's own dynamic cadence: ~1s
+  // The freshness window tracks the cached snapshot's own dynamic cadence: 30s
   // while a match is live, 45 minutes when nothing is in progress.
   if (!options.force && snapshotCache) {
     const cacheTtlMs = Math.max(1, snapshotCache.refreshEvery) * 1000;
@@ -180,7 +180,7 @@ function getProviderConfigSummary() {
   };
 }
 
-// Reflects the cadence of the latest snapshot (1s while live, 45 minutes when
+// Reflects the cadence of the latest snapshot (30s while live, 45 minutes when
 // idle). Falls back to the idle interval before the first snapshot is built.
 function getRefreshEvery() {
   return snapshotCache ? snapshotCache.refreshEvery : IDLE_REFRESH_SECONDS;

@@ -7,10 +7,10 @@ const { applyStoredResults } = require("./result-store.js");
 
 const SOFASCORE_PROVIDER = "Sofascore RapidAPI";
 
-// Dynamic refresh policy: poll every second while any match is live, and fall
-// back to every 45 minutes when nothing is in progress. These are intentionally
-// hard-coded (no env override) so the cadence always tracks live play.
-const LIVE_REFRESH_SECONDS = 1;
+// Dynamic refresh policy: poll every 30 seconds while any match is live, and
+// fall back to every 45 minutes when nothing is in progress. These are
+// intentionally hard-coded (no env override) so the cadence tracks live play.
+const LIVE_REFRESH_SECONDS = 30;
 const IDLE_REFRESH_SECONDS = 45 * 60;
 
 function refreshIntervalFor(data) {
