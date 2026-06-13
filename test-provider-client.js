@@ -52,9 +52,63 @@ test("provider summary is ready when API key can use the default live endpoint",
 test("getProviderPaths allows explicit endpoint overrides", () => {
   withEnv({
     SOFASCORE_PATHS: "/custom/a,/custom/b?sport=football",
-    SOFASCORE_SEASON_ID: undefined
+    SOFASCORE_SEASON_ID: undefined,
+    SOFASCORE_UNIQUE_TOURNAMENT_ID: undefined
   }, () => {
     assert.deepEqual(getProviderPaths(), ["/custom/a", "/custom/b?sport=football"]);
+  });
+});
+
+test("getProviderPaths adds a finished-results endpoint when tournament + season ids are set", () => {
+  withEnv({
+    SOFASCORE_PATHS: undefined,
+    SOFASCORE_UNIQUE_TOURNAMENT_ID: "16",
+    SOFASCORE_SEASON_ID: "55557",
+    SOFASCORE_RESULTS_PAGES: "1"
+  }, () => {
+    assert.deepEqual(getProviderPaths(), [
+      "/tournaments/get-live-events?sport=football",
+      "/tournaments/get-last-matches?tournamentId=16&seasonId=55557&pageIndex=0"
+    ]);
+  });
+});
+
+test("getProviderPaths paginates the finished-results endpoint", () => {
+  withEnv({
+    SOFASCORE_PATHS: undefined,
+    SOFASCORE_UNIQUE_TOURNAMENT_ID: "16",
+    SOFASCORE_SEASON_ID: "55557",
+    SOFASCORE_RESULTS_PAGES: "3"
+  }, () => {
+    const paths = getProviderPaths();
+    assert.equal(paths.length, 4); // live + 3 pages
+    assert.equal(paths[1], "/tournaments/get-last-matches?tournamentId=16&seasonId=55557&pageIndex=0");
+    assert.equal(paths[3], "/tournaments/get-last-matches?tournamentId=16&seasonId=55557&pageIndex=2");
+  });
+});
+
+test("getProviderPaths stays live-only when only one of tournament/season id is set", () => {
+  withEnv({
+    SOFASCORE_PATHS: undefined,
+    SOFASCORE_UNIQUE_TOURNAMENT_ID: "16",
+    SOFASCORE_SEASON_ID: undefined
+  }, () => {
+    assert.deepEqual(getProviderPaths(), ["/tournaments/get-live-events?sport=football"]);
+  });
+});
+
+test("getProviderPaths honors a custom results path template", () => {
+  withEnv({
+    SOFASCORE_PATHS: undefined,
+    SOFASCORE_UNIQUE_TOURNAMENT_ID: "16",
+    SOFASCORE_SEASON_ID: "55557",
+    SOFASCORE_RESULTS_PAGES: "1",
+    SOFASCORE_RESULTS_PATH: "/seasons/{seasonId}/events/last/{page}"
+  }, () => {
+    assert.deepEqual(getProviderPaths(), [
+      "/tournaments/get-live-events?sport=football",
+      "/seasons/55557/events/last/0"
+    ]);
   });
 });
 

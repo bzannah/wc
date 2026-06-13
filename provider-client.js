@@ -1,12 +1,19 @@
 const { createStaticSnapshot, createWorldCupSnapshot } = require("./data-service.js");
 const {
+  mergeResultSources,
   persistFinishedResults,
+  readSeedResults,
   readStoredResults
 } = require("./result-store.js");
 
 const DEFAULT_REFRESH_SECONDS = 60;
 const DEFAULT_LIMIT_WARNING_THRESHOLD = 10;
 const DEFAULT_LIVE_PROVIDER_PATH = "/tournaments/get-live-events?sport=football";
+// apidojo Sofascore "last matches" returns finished events for a tournament+season.
+// This backfills results that have already left the live feed. Override with
+// SOFASCORE_RESULTS_PATH if your RapidAPI subscription exposes a different path.
+const DEFAULT_RESULTS_PATH_TEMPLATE = "/tournaments/get-last-matches?tournamentId={tournamentId}&seasonId={seasonId}&pageIndex={page}";
+const DEFAULT_RESULTS_PAGES = 2;
 
 let snapshotCache = null;
 let snapshotCacheTime = 0;
@@ -29,6 +36,10 @@ async function getWorldCupSnapshot(options = {}) {
   const providerPaths = getProviderPaths();
   const stored = await readStoredResults();
   if (stored.warning) warnings.push(stored.warning);
+  const seed = readSeedResults();
+  if (seed.warning) warnings.push(seed.warning);
+  // Seed is the baseline; durable blob results (and later, live provider) override it.
+  const resultBaseline = mergeResultSources(seed.results, stored.results);
 
   if (process.env.RAPIDAPI_KEY) {
     if (providerPaths.length === 0) {
@@ -63,15 +74,15 @@ async function getWorldCupSnapshot(options = {}) {
   lastProviderQuota = providerQuota;
 
   snapshotCache = providerPayloads.length
-    ? createWorldCupSnapshot({ providerPayloads, refreshEvery, warnings, providerQuota, storedResults: stored.results })
-    : createStaticSnapshot({ refreshEvery, warnings, providerQuota, storedResults: stored.results });
+    ? createWorldCupSnapshot({ providerPayloads, refreshEvery, warnings, providerQuota, storedResults: resultBaseline })
+    : createStaticSnapshot({ refreshEvery, warnings, providerQuota, storedResults: resultBaseline });
 
   const persistence = await persistFinishedResults(snapshotCache);
   if (persistence.warning) snapshotCache.warnings.push(persistence.warning);
   snapshotCache.resultStore = {
     enabled: stored.enabled || persistence.enabled,
     saved: persistence.saved,
-    updatedAt: stored.results.updatedAt || null
+    updatedAt: resultBaseline.updatedAt || null
   };
   snapshotCacheTime = now;
   return snapshotCache;
@@ -108,7 +119,25 @@ function getProviderPaths() {
   const explicit = splitList(process.env.SOFASCORE_PATHS);
   if (explicit.length > 0) return explicit;
 
-  return [DEFAULT_LIVE_PROVIDER_PATH];
+  return [DEFAULT_LIVE_PROVIDER_PATH, ...getResultsBackfillPaths()];
+}
+
+// Built only when the tournament + season ids are configured. Without them the
+// live endpoint alone cannot recover a match that has already finished.
+function getResultsBackfillPaths() {
+  const tournamentId = (process.env.SOFASCORE_UNIQUE_TOURNAMENT_ID || "").trim();
+  const seasonId = (process.env.SOFASCORE_SEASON_ID || "").trim();
+  if (!tournamentId || !seasonId) return [];
+
+  const template = (process.env.SOFASCORE_RESULTS_PATH || DEFAULT_RESULTS_PATH_TEMPLATE).trim();
+  const pages = Math.max(1, Math.min(10, Number(process.env.SOFASCORE_RESULTS_PAGES || DEFAULT_RESULTS_PAGES) || DEFAULT_RESULTS_PAGES));
+
+  return Array.from({ length: pages }, (_, page) =>
+    template
+      .replace(/{tournamentId}/g, tournamentId)
+      .replace(/{seasonId}/g, seasonId)
+      .replace(/{page}/g, String(page))
+  );
 }
 
 async function fetchRapidApiJson(providerPath) {
@@ -137,9 +166,11 @@ async function fetchRapidApiJson(providerPath) {
 
 function getProviderConfigSummary() {
   const providerPaths = getProviderPaths();
+  const resultsBackfillReady = getResultsBackfillPaths().length > 0;
   return {
     liveProviderConfigured: Boolean(process.env.RAPIDAPI_KEY),
     liveProviderReady: Boolean(process.env.RAPIDAPI_KEY && providerPaths.length > 0),
+    resultsBackfillReady,
     resultStoreConfigured: Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID),
     refreshEvery: getRefreshEvery(),
     providerPaths,

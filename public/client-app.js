@@ -864,7 +864,7 @@ function formatCountdown(fixture) {
   const hour = 60 * minute;
   const day = 24 * hour;
 
-  if (diff < -2 * hour) return "Awaiting live data";
+  if (diff < -2 * hour) return "Result pending";
   if (diff <= 0) return "Kickoff window";
 
   const days = Math.floor(diff / day);

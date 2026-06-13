@@ -1,5 +1,6 @@
 const RESULT_STORE_PATH = "worldcup/results.json";
 const RESULT_STORE_VERSION = 1;
+const SEED_RESULTS_FILE = "./seed-results.json";
 
 let blobModulePromise = null;
 
@@ -23,6 +24,36 @@ async function readStoredResults() {
       warning: `Result store unavailable: ${error.message}`
     };
   }
+}
+
+function readSeedResults() {
+  try {
+    if (process.env.RESULT_SEED_JSON) {
+      return { results: normalizeStore(JSON.parse(process.env.RESULT_SEED_JSON)), warning: "" };
+    }
+    const seed = require(SEED_RESULTS_FILE);
+    return { results: normalizeStore(seed), warning: "" };
+  } catch (error) {
+    if (isNotFound(error) || error.code === "MODULE_NOT_FOUND") {
+      return { results: emptyStore(), warning: "" };
+    }
+    return { results: emptyStore(), warning: `Seed results unavailable: ${error.message}` };
+  }
+}
+
+// Combine baseline result sources by fixture id. Later sources win on conflict,
+// so the durable blob store (and, later, the live provider) override the seed.
+function mergeResultSources(...sources) {
+  const fixtures = {};
+  let updatedAt = null;
+  for (const source of sources) {
+    const normalized = normalizeStore(source);
+    Object.assign(fixtures, normalized.fixtures);
+    if (normalized.updatedAt && (!updatedAt || normalized.updatedAt > updatedAt)) {
+      updatedAt = normalized.updatedAt;
+    }
+  }
+  return { version: RESULT_STORE_VERSION, updatedAt, fixtures };
 }
 
 async function persistFinishedResults(snapshot) {
@@ -154,6 +185,8 @@ module.exports = {
   collectFinishedResults,
   emptyStore,
   isResultStoreConfigured,
+  mergeResultSources,
   persistFinishedResults,
+  readSeedResults,
   readStoredResults
 };

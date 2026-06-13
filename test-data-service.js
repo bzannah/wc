@@ -146,6 +146,36 @@ test("stored final result is applied after a match leaves the live feed", () => 
   assert.equal(groupA.teams[0].points, 3);
 });
 
+test("a scoreless live-feed event does not downgrade a confirmed final", () => {
+  const snapshot = createWorldCupSnapshot({
+    now: new Date("2026-06-13T20:00:00Z"),
+    storedResults: {
+      fixtures: {
+        "GA-1": { id: "GA-1", status: "finished", homeScore: 2, awayScore: 0 }
+      }
+    },
+    providerPayloads: [
+      {
+        events: [
+          {
+            id: 9200,
+            tournament: { name: "FIFA World Cup, Group A" },
+            homeTeam: { name: "Mexico" },
+            awayTeam: { name: "South Africa" },
+            status: { type: "notstarted" },
+            startTimestamp: 1781204400
+          }
+        ]
+      }
+    ]
+  });
+  const fixture = snapshot.groupFixtures.find((item) => item.id === "GA-1");
+
+  assert.equal(fixture.status, "finished");
+  assert.equal(fixture.homeScore, 2);
+  assert.equal(fixture.awayScore, 0);
+});
+
 test("global live feed ignores unrelated football events without user-facing warnings", () => {
   const snapshot = createWorldCupSnapshot({
     now: new Date("2026-06-11T20:00:00Z"),

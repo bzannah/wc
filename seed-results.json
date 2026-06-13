@@ -1,0 +1,17 @@
+{
+  "_readme": [
+    "Operator-maintained final results. This is the no-API-key fallback for finished matches.",
+    "Scores MUST be copied verbatim from a cited human source (FIFA, Sofascore, etc.) and",
+    "NEVER generated, guessed, or inferred. Every entry must carry a sourceUrl.",
+    "Keys are local fixture ids (see public/worldcup-data.js): group ids are like 'GD-1'",
+    "(USA v Paraguay) and 'GB-1' (Canada v Bosnia & Herzegovina); knockouts are 'K01'..'K32'.",
+    "homeScore/awayScore are integers 0-50 for the fixture's home/away team in canonical order.",
+    "Ships EMPTY: until a human enters a cited score, the app behaves exactly as before.",
+    "Entries flow through the same isUsableStoredResult + data-quality gate as live data,",
+    "and any live/provider score takes precedence over a seed score for the same fixture."
+  ],
+  "version": 1,
+  "updatedAt": null,
+  "source": "operator-verified",
+  "fixtures": {}
+}

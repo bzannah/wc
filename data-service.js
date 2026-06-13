@@ -133,6 +133,13 @@ function mergeSofascoreEvents(data, events, now = new Date()) {
     const homeScore = match.reversed ? normalized.awayScore : normalized.homeScore;
     const awayScore = match.reversed ? normalized.homeScore : normalized.awayScore;
 
+    // Never downgrade a confirmed final (seed or stored result) with a scoreless feed event.
+    const alreadyFinal = fixture.status === "finished" && Number.isInteger(fixture.homeScore) && Number.isInteger(fixture.awayScore);
+    const incomingHasScores = Number.isInteger(homeScore) && Number.isInteger(awayScore);
+    if (alreadyFinal && normalized.status !== "finished" && !incomingHasScores) {
+      continue;
+    }
+
     Object.assign(fixture, {
       providerId: normalized.providerId,
       stage: normalized.stage || fixture.stage,
