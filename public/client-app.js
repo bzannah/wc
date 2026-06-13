@@ -2,9 +2,15 @@ let appData = cloneData(WC_DATA);
 let teamById = new Map();
 let venueById = new Map();
 
+// Mirrors the server's dynamic refresh policy: every second while a match is
+// live, every 45 minutes when nothing is in progress. The actual cadence is
+// driven by snapshot.refreshEvery; these are used for defaults and labelling.
+const LIVE_REFRESH_SECONDS = 1;
+const IDLE_REFRESH_SECONDS = 45 * 60;
+
 const appState = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London",
-  refreshEvery: 60,
+  refreshEvery: IDLE_REFRESH_SECONDS,
   search: "",
   lastSync: new Date(),
   tick: 0,
@@ -27,7 +33,6 @@ document.addEventListener("DOMContentLoaded", () => {
 function bindControls() {
   const search = document.querySelector("#search");
   const timezone = document.querySelector("#timezone");
-  const refresh = document.querySelector("#refresh");
   const refreshNow = document.querySelector("#refreshNow");
   const viewButtons = document.querySelectorAll("[data-view]");
 
@@ -44,13 +49,6 @@ function bindControls() {
   timezone.addEventListener("change", (event) => {
     appState.timezone = event.target.value;
     renderApp();
-  });
-
-  refresh.addEventListener("change", (event) => {
-    appState.refreshEvery = Number(event.target.value);
-    appState.tick = 0;
-    document.documentElement.style.setProperty("--refresh-progress", "0%");
-    updateSyncText();
   });
 
   refreshNow.addEventListener("click", async () => {
@@ -86,7 +84,6 @@ async function loadSnapshot({ force }) {
     appState.dataQuality = snapshot.dataQuality || { level: "warning", errors: [], warnings: [] };
     appState.providerQuota = snapshot.providerQuota || null;
     appState.warnings = Array.isArray(snapshot.warnings) ? snapshot.warnings : [];
-    document.querySelector("#refresh").value = String(appState.refreshEvery);
     rebuildIndexes();
     renderApp();
   } catch (error) {
@@ -107,7 +104,11 @@ async function loadSnapshot({ force }) {
 function startRefreshLoop() {
   window.setInterval(() => {
     appState.tick = (appState.tick + 1) % appState.refreshEvery;
-    const progress = Math.round((appState.tick / appState.refreshEvery) * 100);
+    // While live we poll every second, so keep the meter full to read as active
+    // instead of flat at 0%. Otherwise show progress toward the next refresh.
+    const progress = appState.refreshEvery <= LIVE_REFRESH_SECONDS
+      ? 100
+      : Math.round((appState.tick / appState.refreshEvery) * 100);
     document.documentElement.style.setProperty("--refresh-progress", `${progress}%`);
 
     if (appState.tick === 0) {
@@ -648,7 +649,7 @@ function getDataConfidence() {
       title: "Live provider connected",
       short: "Live provider verified",
       summary: "Scores update only after team, group, and kickoff checks pass.",
-      details: [`Refresh every ${appState.refreshEvery}s.`, "Schedule and live data are cross-checked.", ...quotaDetailLines(appState.providerQuota)]
+      details: [refreshCadenceText(), "Schedule and live data are cross-checked.", ...quotaDetailLines(appState.providerQuota)]
     };
   }
 
@@ -658,7 +659,7 @@ function getDataConfidence() {
       title: "Stored results verified",
       short: "Stored results",
       summary: "Finished scores are loaded from durable storage after matches leave the live feed.",
-      details: ["Final scores remain visible after live coverage ends.", `Refresh every ${appState.refreshEvery}s.`, ...quotaDetailLines(appState.providerQuota)]
+      details: ["Final scores remain visible after live coverage ends.", refreshCadenceText(), ...quotaDetailLines(appState.providerQuota)]
     };
   }
 
@@ -668,7 +669,7 @@ function getDataConfidence() {
       title: "Verified schedule mode",
       short: "Verified schedule",
       summary: "The full tournament schedule is source-checked. Live scores need the provider key.",
-      details: ["No unverified live scores are shown.", `Refresh every ${appState.refreshEvery}s.`]
+      details: ["No unverified live scores are shown.", refreshCadenceText()]
     };
   }
 
@@ -678,7 +679,7 @@ function getDataConfidence() {
       title: "Verified schedule mode",
       short: "Live endpoint not configured",
       summary: "The tournament schedule is verified. Live scores will start after a valid Sofascore endpoint path is configured.",
-      details: ["No unverified live scores are shown.", `Refresh every ${appState.refreshEvery}s.`, ...quotaDetailLines(appState.providerQuota)]
+      details: ["No unverified live scores are shown.", refreshCadenceText(), ...quotaDetailLines(appState.providerQuota)]
     };
   }
 
@@ -697,7 +698,7 @@ function getDataConfidence() {
     title: "Verified schedule",
     short: "Verified schedule",
     summary: "All fixtures, teams, venues, and opening-day checks are passing.",
-    details: [`Refresh every ${appState.refreshEvery}s.`, "Live scores are merged only after validation.", ...quotaDetailLines(appState.providerQuota)]
+    details: [refreshCadenceText(), "Live scores are merged only after validation.", ...quotaDetailLines(appState.providerQuota)]
   };
 }
 
@@ -783,13 +784,35 @@ function updateSyncText(override) {
     minute: "2-digit",
     second: "2-digit"
   }).format(appState.lastSync);
-  const next = Math.max(0, appState.refreshEvery - appState.tick);
   const confidence = getDataConfidence();
   const source = [confidence.short, appState.dataSource, mostImportantDataNotice()].filter(Boolean).join(" · ");
 
   document.querySelector("#syncText").textContent = override || `Last sync ${sync}`;
-  document.querySelector("#refreshText").textContent = `${next}s`;
+  document.querySelector("#refreshText").textContent = refreshChipText();
   document.querySelector("#dataSource").textContent = source;
+}
+
+function isLiveRefresh() {
+  return appState.refreshEvery <= LIVE_REFRESH_SECONDS;
+}
+
+function refreshChipText() {
+  if (isLiveRefresh()) return "Live · 1s";
+  const secondsLeft = Math.max(0, appState.refreshEvery - appState.tick);
+  return `Next ${formatRefreshCountdown(secondsLeft)}`;
+}
+
+function formatRefreshCountdown(seconds) {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+}
+
+function refreshCadenceText() {
+  return isLiveRefresh()
+    ? "Live scores refresh every second."
+    : "Refreshes every 45 minutes between matches.";
 }
 
 function dataQualityLabel() {

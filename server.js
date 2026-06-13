@@ -11,7 +11,6 @@ loadEnvFile(".env.local");
 
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 4173);
-const refreshEvery = getProviderConfigSummary().refreshEvery;
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -33,7 +32,7 @@ const server = http.createServer(async (request, response) => {
       const force = url.searchParams.get("force") === "1";
       const snapshot = await getWorldCupSnapshot({ force });
       return sendJson(response, 200, snapshot, {
-        "Cache-Control": `private, max-age=${Math.max(1, Math.floor(refreshEvery / 2))}`
+        "Cache-Control": `private, max-age=${Math.max(1, Math.floor(snapshot.refreshEvery / 2))}`
       });
     }
 

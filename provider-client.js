@@ -1,4 +1,4 @@
-const { createStaticSnapshot, createWorldCupSnapshot } = require("./data-service.js");
+const { createStaticSnapshot, createWorldCupSnapshot, IDLE_REFRESH_SECONDS } = require("./data-service.js");
 const {
   mergeResultSources,
   persistFinishedResults,
@@ -6,7 +6,6 @@ const {
   readStoredResults
 } = require("./result-store.js");
 
-const DEFAULT_REFRESH_SECONDS = 60;
 const DEFAULT_LIMIT_WARNING_THRESHOLD = 10;
 const DEFAULT_LIVE_PROVIDER_PATH = "/tournaments/get-live-events?sport=football";
 // apidojo Sofascore "last matches" returns finished events for a tournament+season.
@@ -22,12 +21,15 @@ let lastProviderQuota = quotaStatus("unknown", {
 });
 
 async function getWorldCupSnapshot(options = {}) {
-  const refreshEvery = getRefreshEvery();
-  const cacheTtlMs = Math.max(5, refreshEvery) * 1000;
   const now = Date.now();
 
-  if (!options.force && snapshotCache && now - snapshotCacheTime < cacheTtlMs) {
-    return snapshotCache;
+  // The freshness window tracks the cached snapshot's own dynamic cadence: ~1s
+  // while a match is live, 45 minutes when nothing is in progress.
+  if (!options.force && snapshotCache) {
+    const cacheTtlMs = Math.max(1, snapshotCache.refreshEvery) * 1000;
+    if (now - snapshotCacheTime < cacheTtlMs) {
+      return snapshotCache;
+    }
   }
 
   const warnings = [];
@@ -74,8 +76,8 @@ async function getWorldCupSnapshot(options = {}) {
   lastProviderQuota = providerQuota;
 
   snapshotCache = providerPayloads.length
-    ? createWorldCupSnapshot({ providerPayloads, refreshEvery, warnings, providerQuota, storedResults: resultBaseline })
-    : createStaticSnapshot({ refreshEvery, warnings, providerQuota, storedResults: resultBaseline });
+    ? createWorldCupSnapshot({ providerPayloads, warnings, providerQuota, storedResults: resultBaseline })
+    : createStaticSnapshot({ warnings, providerQuota, storedResults: resultBaseline });
 
   const persistence = await persistFinishedResults(snapshotCache);
   if (persistence.warning) snapshotCache.warnings.push(persistence.warning);
@@ -178,8 +180,10 @@ function getProviderConfigSummary() {
   };
 }
 
+// Reflects the cadence of the latest snapshot (1s while live, 45 minutes when
+// idle). Falls back to the idle interval before the first snapshot is built.
 function getRefreshEvery() {
-  return Number(process.env.REFRESH_INTERVAL_SECONDS || DEFAULT_REFRESH_SECONDS);
+  return snapshotCache ? snapshotCache.refreshEvery : IDLE_REFRESH_SECONDS;
 }
 
 function splitList(value = "") {

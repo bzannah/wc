@@ -7,6 +7,19 @@ const { applyStoredResults } = require("./result-store.js");
 
 const SOFASCORE_PROVIDER = "Sofascore RapidAPI";
 
+// Dynamic refresh policy: poll every second while any match is live, and fall
+// back to every 45 minutes when nothing is in progress. These are intentionally
+// hard-coded (no env override) so the cadence always tracks live play.
+const LIVE_REFRESH_SECONDS = 1;
+const IDLE_REFRESH_SECONDS = 45 * 60;
+
+function refreshIntervalFor(data) {
+  const hasLiveFixture = (data.allFixtures || []).some(
+    (fixture) => fixture.status === "live" || fixture.status === "half-time"
+  );
+  return hasLiveFixture ? LIVE_REFRESH_SECONDS : IDLE_REFRESH_SECONDS;
+}
+
 function createStaticSnapshot(options = {}) {
   const now = options.now || new Date();
   const data = clone(staticData);
@@ -21,7 +34,7 @@ function createStaticSnapshot(options = {}) {
     dataMode: storedResultCount ? "stored-results" : "schedule-only",
     provider: storedResultCount ? "stored final results + source-checked fallback schedule" : "source-checked fallback schedule",
     lastUpdated: now.toISOString(),
-    refreshEvery: Number(options.refreshEvery || 60),
+    refreshEvery: refreshIntervalFor(data),
     warnings,
     dataQuality,
     storedResultCount,
@@ -36,7 +49,6 @@ function createStaticSnapshot(options = {}) {
 
 function createWorldCupSnapshot(options = {}) {
   const now = options.now || new Date();
-  const refreshEvery = Number(options.refreshEvery || 60);
   const providerPayloads = Array.isArray(options.providerPayloads) ? options.providerPayloads : [];
   const warnings = [...(options.warnings || [])];
   const data = clone(staticData);
@@ -62,7 +74,7 @@ function createWorldCupSnapshot(options = {}) {
     dataMode: hasLiveData ? "live-provider-merged" : storedResultCount ? "stored-results" : "schedule-only",
     provider: hasLiveData ? SOFASCORE_PROVIDER : storedResultCount ? "stored final results + source-checked fallback schedule" : "source-checked fallback schedule",
     lastUpdated: now.toISOString(),
-    refreshEvery,
+    refreshEvery: refreshIntervalFor(data),
     warnings,
     dataQuality,
     storedResultCount,
@@ -495,9 +507,12 @@ function clone(value) {
 
 module.exports = {
   SOFASCORE_PROVIDER,
+  LIVE_REFRESH_SECONDS,
+  IDLE_REFRESH_SECONDS,
   createStaticSnapshot,
   createWorldCupSnapshot,
   extractEvents,
   mergeSofascoreEvents,
-  normalizeName
+  normalizeName,
+  refreshIntervalFor
 };

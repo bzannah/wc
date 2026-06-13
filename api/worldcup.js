@@ -1,11 +1,11 @@
-const { getProviderConfigSummary, getWorldCupSnapshot } = require("../provider-client.js");
+const { getWorldCupSnapshot } = require("../provider-client.js");
 
 module.exports = async function worldcup(request, response) {
   try {
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
     const force = url.searchParams.get("force") === "1";
     const snapshot = await getWorldCupSnapshot({ force });
-    const refreshEvery = getProviderConfigSummary().refreshEvery;
+    const refreshEvery = snapshot.refreshEvery;
 
     response.setHeader("Content-Type", "application/json; charset=utf-8");
     response.setHeader(
