@@ -240,6 +240,66 @@ test("provider event without group id is rejected instead of merged", () => {
   assert.match(snapshot.warnings.join(" "), /missing a group id/);
 });
 
+test("a live knockout event matches its bracket slot by stage, venue and kickoff", () => {
+  const snapshot = createWorldCupSnapshot({
+    now: new Date("2026-07-04T18:00:00Z"),
+    providerPayloads: [
+      {
+        events: [
+          {
+            id: 9300,
+            tournament: { name: "FIFA World Cup, Round of 16" },
+            homeTeam: { name: "Mexico" },
+            awayTeam: { name: "Germany" },
+            homeScore: { current: 1 },
+            awayScore: { current: 0 },
+            status: { type: "inprogress" },
+            startTimestamp: Math.floor(new Date("2026-07-04T17:00:00Z").getTime() / 1000),
+            venue: { name: "NRG Stadium", city: { name: "Houston" } }
+          }
+        ]
+      }
+    ]
+  });
+
+  const k17 = snapshot.knockoutFixtures.find((fixture) => fixture.id === "K17");
+
+  assert.equal(snapshot.providerMerge.merged, 1);
+  assert.equal(k17.home, "MEX", "the slot adopts the event's real home team");
+  assert.equal(k17.away, "GER");
+  assert.equal(k17.homeScore, 1);
+  assert.equal(k17.awayScore, 0);
+  assert.equal(k17.status, "live");
+  assert.equal(k17.providerId, "9300");
+  assert.equal(snapshot.dataQuality.level, "verified");
+});
+
+test("an unidentifiable knockout event is rejected rather than grabbing a slot", () => {
+  const snapshot = createWorldCupSnapshot({
+    now: new Date("2026-07-04T18:00:00Z"),
+    providerPayloads: [
+      {
+        events: [
+          {
+            id: 9301,
+            tournament: { name: "FIFA World Cup, Round of 16" },
+            homeTeam: { name: "Mexico" },
+            awayTeam: { name: "Germany" },
+            homeScore: { current: 1 },
+            awayScore: { current: 0 },
+            status: { type: "inprogress" },
+            // No venue and a kickoff far outside any scheduled slot's window.
+            startTimestamp: Math.floor(new Date("2026-06-01T00:00:00Z").getTime() / 1000)
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(snapshot.providerMerge.merged, 0);
+  assert.equal(snapshot.providerMerge.rejected, 1);
+});
+
 test("blank standings preserve draw order before results arrive", () => {
   const snapshot = createStaticSnapshot();
   const groupA = snapshot.groups.find((group) => group.id === "A");

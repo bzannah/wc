@@ -124,6 +124,7 @@ function mergeSofascoreEvents(data, events, now = new Date()) {
   const teamLookup = buildTeamLookup(data.groups);
   const venueLookup = buildVenueLookup(data.venues);
   const fixtureLookup = buildFixtureLookup(data.allFixtures);
+  const assignedKnockout = new Set();
   const report = { merged: 0, rejected: 0, warnings: [] };
 
   for (const event of events) {
@@ -133,7 +134,7 @@ function mergeSofascoreEvents(data, events, now = new Date()) {
       continue;
     }
 
-    const match = findFixtureMatch(fixtureLookup, data.allFixtures, normalized);
+    const match = findFixtureMatch(fixtureLookup, data.allFixtures, normalized, assignedKnockout);
     const mergeCheck = canMergeProviderEvent(match?.fixture, normalized);
     if (!mergeCheck.ok) {
       report.rejected += 1;
@@ -150,6 +151,14 @@ function mergeSofascoreEvents(data, events, now = new Date()) {
     const incomingHasScores = Number.isInteger(homeScore) && Number.isInteger(awayScore);
     if (alreadyFinal && normalized.status !== "finished" && !incomingHasScores) {
       continue;
+    }
+
+    // A knockout fixture holds bracket placeholders ("2A", "W01") until an event
+    // names the real teams, so adopt them when we matched the slot by schedule.
+    if (match.assignTeams && normalized.home && normalized.away) {
+      assignedKnockout.add(fixture.id);
+      fixture.home = normalized.home;
+      fixture.away = normalized.away;
     }
 
     Object.assign(fixture, {
@@ -267,7 +276,7 @@ function compareTeams(a, b) {
     a.name.localeCompare(b.name);
 }
 
-function findFixtureMatch(fixtureLookup, fixtures, event) {
+function findFixtureMatch(fixtureLookup, fixtures, event, assignedKnockout = new Set()) {
   const directKey = fixturePairKey(event.home, event.away, event.group);
   const reverseKey = fixturePairKey(event.away, event.home, event.group);
   const direct = fixtureLookup.get(directKey);
@@ -281,11 +290,56 @@ function findFixtureMatch(fixtureLookup, fixtures, event) {
     return samePair(fixture, event.home, event.away);
   });
 
-  if (!fallback) return null;
-  return {
-    fixture: fallback,
-    reversed: fallback.home === event.away && fallback.away === event.home
-  };
+  if (fallback) {
+    return {
+      fixture: fallback,
+      reversed: fallback.home === event.away && fallback.away === event.home
+    };
+  }
+
+  // Knockout events carry real teams while local knockout fixtures still hold
+  // bracket placeholders, so match the scheduled slot by stage + venue + kickoff
+  // and adopt the event's teams once found.
+  if (isKnockoutStage(event.stage)) {
+    const slot = findKnockoutSlot(fixtures, event, assignedKnockout);
+    if (slot) return { fixture: slot, reversed: false, assignTeams: true };
+  }
+
+  return null;
+}
+
+function isKnockoutStage(stage) {
+  return Boolean(stage) && stage !== "Group";
+}
+
+// Score every still-open knockout fixture in the event's stage and return the
+// best match. A venue match is decisive; otherwise kickoff proximity (inside the
+// 36h validation window) decides. Returns null if nothing is identifiable, so an
+// ambiguous event can never grab an arbitrary slot.
+function findKnockoutSlot(fixtures, event, assignedKnockout = new Set()) {
+  const candidates = fixtures.filter(
+    (fixture) => isKnockoutStage(fixture.stage) && fixture.stage === event.stage && !assignedKnockout.has(fixture.id)
+  );
+  if (candidates.length === 0) return null;
+
+  const eventTime = event.kickoff ? new Date(event.kickoff).getTime() : null;
+  let best = null;
+  let bestScore = 0;
+
+  for (const fixture of candidates) {
+    let score = 0;
+    if (event.venue && fixture.venue && event.venue === fixture.venue) score += 100;
+    if (eventTime && fixture.kickoff) {
+      const diffHours = Math.abs(new Date(fixture.kickoff).getTime() - eventTime) / 3_600_000;
+      score += diffHours <= 36 ? 36 - diffHours : -1000;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = fixture;
+    }
+  }
+
+  return best;
 }
 
 function syncFixtureCollections(data) {

@@ -106,6 +106,22 @@ test("projectBracket assigns the eight best thirds to distinct, eligible slots",
   }
 });
 
+test("projectBracket treats a knockout slot already named with a real team as confirmed", () => {
+  const data = {
+    groups: [{ id: "A", teams: [team("MEX", 9), team("AR", 6), team("A3", 3), team("A4", 0)] }],
+    groupFixtures: [{ group: "A", status: "finished" }],
+    knockoutFixtures: [
+      // A live result has already merged real teams onto the fixture.
+      { id: "K17", stage: "Round of 16", home: "MEX", away: "W02", homeScore: 2, awayScore: 1, status: "finished" }
+    ]
+  };
+
+  const projection = projectBracket(data);
+
+  assert.equal(projection.resolved.K17.home.teamId, "MEX");
+  assert.equal(projection.resolved.K17.home.projected, false, "a named team is confirmed, not projected");
+});
+
 test("computeQualification clinches, eliminates, and flags third-place hopefuls", () => {
   const data = {
     groups: [{

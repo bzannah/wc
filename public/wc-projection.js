@@ -105,6 +105,7 @@
     const groupFixtures = data.groupFixtures || [];
     const knockoutFixtures = data.knockoutFixtures || [];
 
+    const teamIds = new Set(groups.flatMap((group) => group.teams.map((team) => team.id)));
     const groupComplete = {};
     for (const group of groups) groupComplete[group.id] = isGroupComplete(group, groupFixtures);
     const thirdsComplete = allGroupsComplete(groups, groupFixtures);
@@ -174,6 +175,10 @@
         const outcome = matchOutcome[Number(matchLoser[1])];
         return slotInfo(slot, outcome && outcome.loser, outcome ? outcome.projected : true);
       }
+
+      // The provider has already named this knockout slot's real team (a live
+      // result merged onto the fixture), so treat it as confirmed.
+      if (teamIds.has(slot)) return slotInfo(slot, slot, false);
 
       return slotInfo(slot, null, true);
     }
