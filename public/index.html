@@ -46,6 +46,17 @@
         </div>
       </header>
 
+      <section class="my-teams" id="myTeams" aria-label="Teams you follow">
+        <header class="my-teams-head">
+          <div>
+            <span class="eyebrow">Following</span>
+            <h2>Your teams</h2>
+          </div>
+          <button class="link-button" id="clearFollows" type="button">Clear all</button>
+        </header>
+        <div class="my-teams-grid" id="myTeamsGrid"></div>
+      </section>
+
       <section class="today-command" id="today" aria-label="Today at the World Cup">
         <div class="today-panel" id="todayPanel"></div>
         <aside class="confidence-card" id="dataConfidence" aria-live="polite"></aside>
@@ -138,6 +149,7 @@
     </div>
 
     <script src="./worldcup-data.js"></script>
+    <script src="./wc-projection.js"></script>
     <script src="./client-app.js"></script>
   </body>
 </html>
