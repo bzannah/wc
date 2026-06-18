@@ -3,7 +3,7 @@ let teamById = new Map();
 let venueById = new Map();
 
 const REFRESH_INTERVAL_SECONDS = 30 * 60;
-const REFRESH_INTERVAL_LABEL = "30m";
+const REFRESH_INTERVAL_LABEL = "30 min";
 const REFRESH_DETAIL_TEXT = "Refresh every 30 minutes.";
 
 const appState = {

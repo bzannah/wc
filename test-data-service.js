@@ -116,6 +116,7 @@ test("half-time provider event does not show a runaway live minute", () => {
   const fixture = snapshot.groupFixtures.find((item) => item.providerId === "9004");
 
   assert.equal(snapshot.source, "live");
+  assert.equal(snapshot.refreshEvery, 30 * 60);
   assert.equal(fixture.status, "half-time");
   assert.equal(fixture.minute, null);
   assert.equal(fixture.homeScore, 1);
@@ -213,6 +214,7 @@ test("global live feed ignores unrelated football events without user-facing war
   });
 
   assert.equal(snapshot.source, "live");
+  assert.equal(snapshot.refreshEvery, 30 * 60);
   assert.equal(snapshot.providerMerge.merged, 1);
   assert.equal(snapshot.providerMerge.rejected, 1);
   assert.doesNotMatch(snapshot.warnings.join(" "), /teams could not be matched/);

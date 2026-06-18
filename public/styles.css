@@ -325,7 +325,7 @@ button {
 
 .sync-chip b {
   display: grid;
-  width: 54px;
+  width: 70px;
   height: 54px;
   place-items: center;
   border: 2px solid var(--green);
