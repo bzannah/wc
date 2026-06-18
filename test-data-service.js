@@ -25,6 +25,11 @@ test("extractEvents finds Sofascore-like events inside provider payloads", () =>
   assert.equal(extractEvents(payload).length, 1);
 });
 
+test("snapshots default to a 30 minute refresh interval", () => {
+  assert.equal(createStaticSnapshot().refreshEvery, 30 * 60);
+  assert.equal(createWorldCupSnapshot().refreshEvery, 30 * 60);
+});
+
 test("provider event updates fixture and recomputes standings", () => {
   const snapshot = createWorldCupSnapshot({
     now: new Date("2026-06-11T20:00:00Z"),

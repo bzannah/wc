@@ -6,6 +6,7 @@ const {
 const { applyStoredResults } = require("./result-store.js");
 
 const SOFASCORE_PROVIDER = "Sofascore RapidAPI";
+const DEFAULT_REFRESH_SECONDS = 30 * 60;
 
 function createStaticSnapshot(options = {}) {
   const now = options.now || new Date();
@@ -21,7 +22,7 @@ function createStaticSnapshot(options = {}) {
     dataMode: storedResultCount ? "stored-results" : "schedule-only",
     provider: storedResultCount ? "stored final results + source-checked fallback schedule" : "source-checked fallback schedule",
     lastUpdated: now.toISOString(),
-    refreshEvery: Number(options.refreshEvery || 60),
+    refreshEvery: Number(options.refreshEvery || DEFAULT_REFRESH_SECONDS),
     warnings,
     dataQuality,
     storedResultCount,
@@ -36,7 +37,7 @@ function createStaticSnapshot(options = {}) {
 
 function createWorldCupSnapshot(options = {}) {
   const now = options.now || new Date();
-  const refreshEvery = Number(options.refreshEvery || 60);
+  const refreshEvery = Number(options.refreshEvery || DEFAULT_REFRESH_SECONDS);
   const providerPayloads = Array.isArray(options.providerPayloads) ? options.providerPayloads : [];
   const warnings = [...(options.warnings || [])];
   const data = clone(staticData);

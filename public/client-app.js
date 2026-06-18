@@ -2,12 +2,14 @@ let appData = cloneData(WC_DATA);
 let teamById = new Map();
 let venueById = new Map();
 
+const REFRESH_INTERVAL_SECONDS = 30 * 60;
+const REFRESH_INTERVAL_LABEL = "30m";
+const REFRESH_DETAIL_TEXT = "Refresh every 30 minutes.";
+
 const appState = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London",
-  refreshEvery: 60,
   search: "",
   lastSync: new Date(),
-  tick: 0,
   isLoading: false,
   dataSource: "Local model",
   dataMode: "schedule-only",
@@ -20,15 +22,13 @@ document.addEventListener("DOMContentLoaded", () => {
   rebuildIndexes();
   renderApp();
   bindControls();
-  loadSnapshot({ force: false });
+  loadSnapshot();
   startRefreshLoop();
 });
 
 function bindControls() {
   const search = document.querySelector("#search");
   const timezone = document.querySelector("#timezone");
-  const refresh = document.querySelector("#refresh");
-  const refreshNow = document.querySelector("#refreshNow");
   const viewButtons = document.querySelectorAll("[data-view]");
 
   if ([...timezone.options].some((option) => option.value === appState.timezone)) {
@@ -46,19 +46,6 @@ function bindControls() {
     renderApp();
   });
 
-  refresh.addEventListener("change", (event) => {
-    appState.refreshEvery = Number(event.target.value);
-    appState.tick = 0;
-    document.documentElement.style.setProperty("--refresh-progress", "0%");
-    updateSyncText();
-  });
-
-  refreshNow.addEventListener("click", async () => {
-    await loadSnapshot({ force: true });
-    refreshNow.classList.add("is-spinning");
-    window.setTimeout(() => refreshNow.classList.remove("is-spinning"), 600);
-  });
-
   viewButtons.forEach((button) => {
     button.addEventListener("click", () => {
       viewButtons.forEach((item) => item.classList.remove("is-active"));
@@ -68,25 +55,23 @@ function bindControls() {
   });
 }
 
-async function loadSnapshot({ force }) {
+async function loadSnapshot() {
   if (appState.isLoading) return;
   appState.isLoading = true;
   updateSyncText("Updating...");
 
   try {
-    const response = await fetch(`/api/worldcup${force ? "?force=1" : ""}`, { cache: "no-store" });
+    const response = await fetch("/api/worldcup", { cache: "no-store" });
     if (!response.ok) throw new Error(`API returned ${response.status}`);
 
     const snapshot = await response.json();
     appData = normalizeSnapshot(snapshot);
     appState.lastSync = new Date(snapshot.lastUpdated || Date.now());
-    appState.refreshEvery = Number(snapshot.refreshEvery || appState.refreshEvery);
     appState.dataSource = snapshot.provider || snapshot.source || "Live data";
     appState.dataMode = snapshot.dataMode || snapshot.source || "unknown";
     appState.dataQuality = snapshot.dataQuality || { level: "warning", errors: [], warnings: [] };
     appState.providerQuota = snapshot.providerQuota || null;
     appState.warnings = Array.isArray(snapshot.warnings) ? snapshot.warnings : [];
-    document.querySelector("#refresh").value = String(appState.refreshEvery);
     rebuildIndexes();
     renderApp();
   } catch (error) {
@@ -98,25 +83,12 @@ async function loadSnapshot({ force }) {
     renderApp();
   } finally {
     appState.isLoading = false;
-    appState.tick = 0;
-    document.documentElement.style.setProperty("--refresh-progress", "0%");
     updateSyncText();
   }
 }
 
 function startRefreshLoop() {
-  window.setInterval(() => {
-    appState.tick = (appState.tick + 1) % appState.refreshEvery;
-    const progress = Math.round((appState.tick / appState.refreshEvery) * 100);
-    document.documentElement.style.setProperty("--refresh-progress", `${progress}%`);
-
-    if (appState.tick === 0) {
-      loadSnapshot({ force: false });
-    } else {
-      renderTodayPanel();
-      updateSyncText();
-    }
-  }, 1000);
+  window.setInterval(loadSnapshot, REFRESH_INTERVAL_SECONDS * 1000);
 }
 
 function renderApp() {
@@ -648,7 +620,7 @@ function getDataConfidence() {
       title: "Live provider connected",
       short: "Live provider verified",
       summary: "Scores update only after team, group, and kickoff checks pass.",
-      details: [`Refresh every ${appState.refreshEvery}s.`, "Schedule and live data are cross-checked.", ...quotaDetailLines(appState.providerQuota)]
+      details: [REFRESH_DETAIL_TEXT, "Schedule and live data are cross-checked.", ...quotaDetailLines(appState.providerQuota)]
     };
   }
 
@@ -658,7 +630,7 @@ function getDataConfidence() {
       title: "Stored results verified",
       short: "Stored results",
       summary: "Finished scores are loaded from durable storage after matches leave the live feed.",
-      details: ["Final scores remain visible after live coverage ends.", `Refresh every ${appState.refreshEvery}s.`, ...quotaDetailLines(appState.providerQuota)]
+      details: ["Final scores remain visible after live coverage ends.", REFRESH_DETAIL_TEXT, ...quotaDetailLines(appState.providerQuota)]
     };
   }
 
@@ -668,7 +640,7 @@ function getDataConfidence() {
       title: "Verified schedule mode",
       short: "Verified schedule",
       summary: "The full tournament schedule is source-checked. Live scores need the provider key.",
-      details: ["No unverified live scores are shown.", `Refresh every ${appState.refreshEvery}s.`]
+      details: ["No unverified live scores are shown.", REFRESH_DETAIL_TEXT]
     };
   }
 
@@ -678,7 +650,7 @@ function getDataConfidence() {
       title: "Verified schedule mode",
       short: "Live endpoint not configured",
       summary: "The tournament schedule is verified. Live scores will start after a valid Sofascore endpoint path is configured.",
-      details: ["No unverified live scores are shown.", `Refresh every ${appState.refreshEvery}s.`, ...quotaDetailLines(appState.providerQuota)]
+      details: ["No unverified live scores are shown.", REFRESH_DETAIL_TEXT, ...quotaDetailLines(appState.providerQuota)]
     };
   }
 
@@ -697,7 +669,7 @@ function getDataConfidence() {
     title: "Verified schedule",
     short: "Verified schedule",
     summary: "All fixtures, teams, venues, and opening-day checks are passing.",
-    details: [`Refresh every ${appState.refreshEvery}s.`, "Live scores are merged only after validation.", ...quotaDetailLines(appState.providerQuota)]
+    details: [REFRESH_DETAIL_TEXT, "Live scores are merged only after validation.", ...quotaDetailLines(appState.providerQuota)]
   };
 }
 
@@ -713,7 +685,7 @@ function quotaAlertState(quota) {
       details: [
         quotaRemainingText(quota),
         quota.resetAt ? `Resets ${formatQuotaReset(quota.resetAt)}` : "Check RapidAPI for the reset time.",
-        "Upgrade the RapidAPI plan or increase the refresh interval."
+        "Upgrade the RapidAPI plan or wait for the quota reset."
       ].filter(Boolean)
     };
   }
@@ -783,12 +755,11 @@ function updateSyncText(override) {
     minute: "2-digit",
     second: "2-digit"
   }).format(appState.lastSync);
-  const next = Math.max(0, appState.refreshEvery - appState.tick);
   const confidence = getDataConfidence();
   const source = [confidence.short, appState.dataSource, mostImportantDataNotice()].filter(Boolean).join(" · ");
 
   document.querySelector("#syncText").textContent = override || `Last sync ${sync}`;
-  document.querySelector("#refreshText").textContent = `${next}s`;
+  document.querySelector("#refreshText").textContent = REFRESH_INTERVAL_LABEL;
   document.querySelector("#dataSource").textContent = source;
 }
 

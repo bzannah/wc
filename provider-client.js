@@ -6,7 +6,7 @@ const {
   readStoredResults
 } = require("./result-store.js");
 
-const DEFAULT_REFRESH_SECONDS = 60;
+const REFRESH_INTERVAL_SECONDS = 30 * 60;
 const DEFAULT_LIMIT_WARNING_THRESHOLD = 10;
 const DEFAULT_LIVE_PROVIDER_PATH = "/tournaments/get-live-events?sport=football";
 // apidojo Sofascore "last matches" returns finished events for a tournament+season.
@@ -179,7 +179,7 @@ function getProviderConfigSummary() {
 }
 
 function getRefreshEvery() {
-  return Number(process.env.REFRESH_INTERVAL_SECONDS || DEFAULT_REFRESH_SECONDS);
+  return REFRESH_INTERVAL_SECONDS;
 }
 
 function splitList(value = "") {
@@ -257,7 +257,7 @@ function summarizeProviderQuota(reports, now = new Date()) {
 function providerQuotaWarning(quota) {
   if (!quota) return "";
   if (quota.status === "limit_reached") {
-    return `RapidAPI usage limit reached${quota.resetAt ? ` until ${quota.resetAt}` : ""}. Upgrade the plan or reduce refresh frequency.`;
+    return `RapidAPI usage limit reached${quota.resetAt ? ` until ${quota.resetAt}` : ""}. Upgrade the plan or wait for the quota reset.`;
   }
   if (quota.status === "near_limit") {
     return `RapidAPI usage is low: ${quota.remaining} requests remaining${quota.limit ? ` of ${quota.limit}` : ""}.`;
@@ -347,6 +347,7 @@ function parseResetHeader(value, now) {
 }
 
 module.exports = {
+  REFRESH_INTERVAL_SECONDS,
   fetchProviderPayloads,
   getProviderConfigSummary,
   getProviderPaths,

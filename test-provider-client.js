@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  REFRESH_INTERVAL_SECONDS,
   getProviderConfigSummary,
   getProviderPaths,
   providerQuotaWarning,
@@ -46,6 +47,16 @@ test("provider summary is ready when API key can use the default live endpoint",
     assert.equal(summary.liveProviderConfigured, true);
     assert.equal(summary.liveProviderReady, true);
     assert.deepEqual(summary.providerPaths, ["/tournaments/get-live-events?sport=football"]);
+  });
+});
+
+test("provider refresh interval is fixed at 30 minutes", () => {
+  withEnv({
+    REFRESH_INTERVAL_SECONDS: "5"
+  }, () => {
+    const summary = getProviderConfigSummary();
+    assert.equal(REFRESH_INTERVAL_SECONDS, 30 * 60);
+    assert.equal(summary.refreshEvery, 30 * 60);
   });
 });
 

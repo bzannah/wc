@@ -40,18 +40,6 @@
             </select>
           </label>
 
-          <label class="select-shell" for="refresh">
-            <span>Refresh</span>
-            <select id="refresh">
-              <option value="30">30s</option>
-              <option value="60" selected>60s</option>
-              <option value="120">2m</option>
-            </select>
-          </label>
-
-          <button class="icon-button refresh-button" id="refreshNow" type="button" aria-label="Refresh now" title="Refresh now">
-            ↻
-          </button>
         </div>
       </header>
 
@@ -78,10 +66,8 @@
         <div class="sync-chip">
           <span id="syncText">Last sync --:--:--</span>
           <small id="dataSource">Local model</small>
-          <b id="refreshText">60s</b>
+          <b id="refreshText">30m</b>
         </div>
-
-        <div class="refresh-meter" aria-hidden="true"></div>
       </section>
 
       <section class="live-strip" id="liveStrip" aria-label="Live and next matches"></section>

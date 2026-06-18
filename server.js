@@ -30,10 +30,9 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (url.pathname === "/api/worldcup") {
-      const force = url.searchParams.get("force") === "1";
-      const snapshot = await getWorldCupSnapshot({ force });
+      const snapshot = await getWorldCupSnapshot();
       return sendJson(response, 200, snapshot, {
-        "Cache-Control": `private, max-age=${Math.max(1, Math.floor(refreshEvery / 2))}`
+        "Cache-Control": `private, max-age=${refreshEvery}`
       });
     }
 
