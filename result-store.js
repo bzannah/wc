@@ -110,6 +110,13 @@ function applyStoredResults(data, storedResults) {
       minute: null,
       sourceUrl: result.sourceUrl || fixture.sourceUrl
     });
+
+    // Knockout fixtures store bracket placeholders ("2A", "W01"); a persisted
+    // result names the real teams, so restore them across reloads.
+    if (fixture.stage !== "Group" && result.home && result.away) {
+      fixture.home = result.home;
+      fixture.away = result.away;
+    }
     applied += 1;
   }
 

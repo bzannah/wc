@@ -1,4 +1,4 @@
-const { createStaticSnapshot, createWorldCupSnapshot } = require("./data-service.js");
+const { createStaticSnapshot, createWorldCupSnapshot, REFRESH_INTERVAL_SECONDS } = require("./data-service.js");
 const {
   mergeResultSources,
   persistFinishedResults,
@@ -6,7 +6,6 @@ const {
   readStoredResults
 } = require("./result-store.js");
 
-const REFRESH_INTERVAL_SECONDS = 30 * 60;
 const DEFAULT_LIMIT_WARNING_THRESHOLD = 10;
 const DEFAULT_LIVE_PROVIDER_PATH = "/tournaments/get-live-events?sport=football";
 // apidojo Sofascore "last matches" returns finished events for a tournament+season.
@@ -22,12 +21,13 @@ let lastProviderQuota = quotaStatus("unknown", {
 });
 
 async function getWorldCupSnapshot(options = {}) {
-  const refreshEvery = getRefreshEvery();
-  const cacheTtlMs = Math.max(5, refreshEvery) * 1000;
   const now = Date.now();
 
-  if (!options.force && snapshotCache && now - snapshotCacheTime < cacheTtlMs) {
-    return snapshotCache;
+  if (!options.force && snapshotCache) {
+    const cacheTtlMs = REFRESH_INTERVAL_SECONDS * 1000;
+    if (now - snapshotCacheTime < cacheTtlMs) {
+      return snapshotCache;
+    }
   }
 
   const warnings = [];
@@ -74,8 +74,8 @@ async function getWorldCupSnapshot(options = {}) {
   lastProviderQuota = providerQuota;
 
   snapshotCache = providerPayloads.length
-    ? createWorldCupSnapshot({ providerPayloads, refreshEvery, warnings, providerQuota, storedResults: resultBaseline })
-    : createStaticSnapshot({ refreshEvery, warnings, providerQuota, storedResults: resultBaseline });
+    ? createWorldCupSnapshot({ providerPayloads, warnings, providerQuota, storedResults: resultBaseline })
+    : createStaticSnapshot({ warnings, providerQuota, storedResults: resultBaseline });
 
   const persistence = await persistFinishedResults(snapshotCache);
   if (persistence.warning) snapshotCache.warnings.push(persistence.warning);

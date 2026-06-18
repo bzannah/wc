@@ -6,8 +6,11 @@ const REFRESH_INTERVAL_SECONDS = 30 * 60;
 const REFRESH_INTERVAL_LABEL = "30 min";
 const REFRESH_DETAIL_TEXT = "Refresh every 30 minutes.";
 
+const STORAGE_KEYS = { favorites: "wc:favorites", timezone: "wc:timezone" };
+const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London";
+
 const appState = {
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London",
+  timezone: loadTimezone() || detectedTimezone,
   search: "",
   lastSync: new Date(),
   isLoading: false,
@@ -15,7 +18,10 @@ const appState = {
   dataMode: "schedule-only",
   dataQuality: { level: "warning", errors: [], warnings: [] },
   providerQuota: null,
-  warnings: []
+  warnings: [],
+  favorites: loadFavorites(),
+  qualification: {},
+  projection: { resolved: {}, matchOutcome: {} }
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -26,14 +32,73 @@ document.addEventListener("DOMContentLoaded", () => {
   startRefreshLoop();
 });
 
+function loadFavorites() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.favorites) || "[]");
+    return new Set(Array.isArray(stored) ? stored : []);
+  } catch (error) {
+    return new Set();
+  }
+}
+
+function saveFavorites() {
+  try {
+    window.localStorage.setItem(STORAGE_KEYS.favorites, JSON.stringify([...appState.favorites]));
+  } catch (error) {
+    /* storage may be unavailable (private mode); favourites stay in-memory */
+  }
+}
+
+function loadTimezone() {
+  try {
+    return window.localStorage.getItem(STORAGE_KEYS.timezone) || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function saveTimezone(value) {
+  try {
+    window.localStorage.setItem(STORAGE_KEYS.timezone, value);
+  } catch (error) {
+    /* ignore storage failures */
+  }
+}
+
+function isFavorite(teamId) {
+  return Boolean(teamId) && appState.favorites.has(teamId);
+}
+
+function toggleFavorite(teamId) {
+  if (!teamId) return;
+  if (appState.favorites.has(teamId)) {
+    appState.favorites.delete(teamId);
+  } else {
+    appState.favorites.add(teamId);
+  }
+  saveFavorites();
+  renderMyTeams();
+  renderGroups();
+  renderStatusBar();
+  renderBracket();
+  renderTodayPanel();
+}
+
 function bindControls() {
   const search = document.querySelector("#search");
   const timezone = document.querySelector("#timezone");
+  const clearFollows = document.querySelector("#clearFollows");
   const viewButtons = document.querySelectorAll("[data-view]");
 
-  if ([...timezone.options].some((option) => option.value === appState.timezone)) {
-    timezone.value = appState.timezone;
+  // Make sure the visitor's own zone is selectable even if it is not one of the
+  // presets, then reflect the active (possibly persisted) zone in the control.
+  if (![...timezone.options].some((option) => option.value === appState.timezone)) {
+    const option = document.createElement("option");
+    option.value = appState.timezone;
+    option.textContent = `${shortTimezoneLabel(appState.timezone)} (local)`;
+    timezone.prepend(option);
   }
+  timezone.value = appState.timezone;
 
   search.addEventListener("input", (event) => {
     appState.search = event.target.value.trim().toLowerCase();
@@ -43,8 +108,26 @@ function bindControls() {
 
   timezone.addEventListener("change", (event) => {
     appState.timezone = event.target.value;
+    saveTimezone(appState.timezone);
     renderApp();
   });
+
+  // Star buttons are re-rendered constantly, so listen once via delegation.
+  document.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-fav-toggle]");
+    if (!toggle) return;
+    event.preventDefault();
+    toggleFavorite(toggle.dataset.favToggle);
+  });
+
+  if (clearFollows) {
+    clearFollows.addEventListener("click", () => {
+      if (!appState.favorites.size) return;
+      appState.favorites.clear();
+      saveFavorites();
+      renderApp();
+    });
+  }
 
   viewButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -92,12 +175,21 @@ function startRefreshLoop() {
 }
 
 function renderApp() {
+  recomputeDerivedData();
+  renderMyTeams();
   renderTodayPanel();
   renderStatusBar();
   renderGroups();
   renderBracket();
   renderFixtures();
   updateSyncText();
+}
+
+// Bracket projection and qualification status are derived from the current
+// standings, so they only need refreshing when the underlying data changes.
+function recomputeDerivedData() {
+  appState.qualification = WCProjection.computeQualification(appData);
+  appState.projection = WCProjection.projectBracket(appData);
 }
 
 function renderStatusBar() {
@@ -121,6 +213,136 @@ function renderStatusBar() {
   document.querySelector("#metricVenues").textContent = (appData.venues || []).length;
   document.querySelector("#metricLive").textContent = live.length;
   document.querySelector("#metricFinished").textContent = finished.length;
+}
+
+function renderMyTeams() {
+  const section = document.querySelector("#myTeams");
+  const grid = document.querySelector("#myTeamsGrid");
+  if (!section || !grid) return;
+
+  const favorites = [...appState.favorites].filter((id) => teamById.has(id));
+
+  if (!favorites.length) {
+    section.classList.add("is-empty");
+    grid.innerHTML = emptyState("Tap the ☆ next to a team in any group table to pin its next match and latest result here.");
+    return;
+  }
+
+  section.classList.remove("is-empty");
+  favorites.sort((a, b) => teamById.get(a).name.localeCompare(teamById.get(b).name));
+  grid.innerHTML = favorites.map(myTeamCard).join("");
+}
+
+function myTeamCard(teamId) {
+  const team = teamById.get(teamId);
+  const group = groupForTeam(teamId);
+  const status = appState.qualification[teamId];
+  const fixtures = (appData.allFixtures || [])
+    .filter((fixture) => involvesTeam(fixture, teamId))
+    .slice()
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  const upcoming = fixtures.find(isLiveFixture) || fixtures.find((fixture) => fixture.status === "scheduled");
+  const last = [...fixtures].reverse().find((fixture) => fixture.status === "finished");
+
+  return `
+    <article class="my-team-card ${status ? `q-${status.tone}` : ""}">
+      <header class="my-team-head">
+        <span class="my-team-flag">${team.flag || ""}</span>
+        <div class="my-team-name">
+          <strong>${escapeHtml(team.name)}</strong>
+          <span>${group ? `Group ${escapeHtml(group.id)}` : "Knockout"}${status && status.glyph ? ` · ${escapeHtml(status.label)}` : ""}</span>
+        </div>
+        ${qualBadge(status)}
+        <button class="fav-star is-on" type="button" data-fav-toggle="${escapeHtml(teamId)}" aria-pressed="true" aria-label="Unfollow ${escapeHtml(team.name)}" title="Unfollow">★</button>
+      </header>
+      <div class="my-team-fixtures">
+        ${myTeamFixtureLine("Next", upcoming, teamId)}
+        ${myTeamFixtureLine("Last", last, teamId)}
+      </div>
+    </article>
+  `;
+}
+
+function myTeamFixtureLine(label, fixture, teamId) {
+  if (!fixture) {
+    return `<div class="my-team-line is-empty"><b>${escapeHtml(label)}</b><span>No match ${label === "Next" ? "scheduled" : "played"} yet</span></div>`;
+  }
+
+  const opponent = opponentLabel(fixture, teamId);
+  const venue = venueById.get(fixture.venue) || {};
+  const when = isLiveFixture(fixture)
+    ? fixtureStatusLabel(fixture)
+    : `${formatShortDate(fixture.kickoff)} · ${formatTime(fixture.kickoff)}`;
+
+  return `
+    <div class="my-team-line ${statusTone(fixture)}">
+      <b>${escapeHtml(label)}</b>
+      <span class="my-team-opp">${escapeHtml(teamSideText(fixture, teamId))} ${flag(opponent)}${escapeHtml(opponent.name)}</span>
+      <span class="my-team-when">${escapeHtml(when)} · ${escapeHtml(venueName(venue))}</span>
+    </div>
+  `;
+}
+
+// "vs" with our score shown first when a result exists, otherwise just the matchup.
+function teamSideText(fixture, teamId) {
+  const resolved = appState.projection.resolved[fixture.id];
+  const homeId = fixture.home === teamId ? teamId : resolved?.home?.teamId;
+  const isHome = homeId === teamId || fixture.home === teamId;
+  const score = scoreText(fixture);
+  if (score === "v") return "vs";
+  return isHome ? `${score} vs` : `${reverseScore(score)} vs`;
+}
+
+function reverseScore(score) {
+  const parts = String(score).split("-");
+  return parts.length === 2 ? `${parts[1]}-${parts[0]}` : score;
+}
+
+function opponentLabel(fixture, teamId) {
+  const resolved = appState.projection.resolved[fixture.id];
+  let opponentId = null;
+  if (fixture.home === teamId) opponentId = fixture.away;
+  else if (fixture.away === teamId) opponentId = fixture.home;
+  else if (resolved) {
+    opponentId = resolved.home.teamId === teamId ? resolved.away.teamId : resolved.home.teamId;
+  }
+  return labelFor(opponentId);
+}
+
+function involvesTeam(fixture, teamId) {
+  if (fixture.home === teamId || fixture.away === teamId) return true;
+  const resolved = appState.projection.resolved[fixture.id];
+  return Boolean(resolved && (resolved.home.teamId === teamId || resolved.away.teamId === teamId));
+}
+
+function fixtureHasFavorite(fixture) {
+  if (isFavorite(fixture.home) || isFavorite(fixture.away)) return true;
+  const resolved = appState.projection.resolved[fixture.id];
+  return Boolean(resolved && (isFavorite(resolved.home.teamId) || isFavorite(resolved.away.teamId)));
+}
+
+function favClass(fixture) {
+  return fixtureHasFavorite(fixture) ? "has-fav" : "";
+}
+
+function groupForTeam(teamId) {
+  return (appData.groups || []).find((group) => group.teams.some((team) => team.id === teamId));
+}
+
+function favStar(teamId) {
+  if (!teamId) return "";
+  const on = isFavorite(teamId);
+  return `<button class="fav-star ${on ? "is-on" : ""}" type="button" data-fav-toggle="${escapeHtml(teamId)}" aria-pressed="${on}" aria-label="${on ? "Unfollow" : "Follow"} team ${escapeHtml(teamId)}" title="${on ? "Following" : "Follow"}">${on ? "★" : "☆"}</button>`;
+}
+
+function qualBadge(status) {
+  if (!status || !status.glyph) return "";
+  return `<span class="q-badge q-${status.tone}" title="${escapeHtml(status.label)}" aria-label="${escapeHtml(status.label)}">${escapeHtml(status.glyph)}</span>`;
+}
+
+function shortTimezoneLabel(timeZone) {
+  const tail = String(timeZone).split("/").pop() || timeZone;
+  return tail.replace(/_/g, " ");
 }
 
 function renderTodayPanel() {
@@ -177,7 +399,7 @@ function todayMatchCard(fixture, fixtures, mode) {
   ` : "";
 
   return `
-    <article class="today-card ${tone}">
+    <article class="today-card ${tone} ${favClass(fixture)}">
       <div class="today-main">
         <div class="today-copy">
           <span class="eyebrow">${escapeHtml(title)}</span>
@@ -319,7 +541,7 @@ function groupCard(group) {
       </header>
       <table class="standings" aria-label="Group ${escapeHtml(group.id)} standings">
         <thead>
-          <tr><th>#</th><th>Team</th><th>P</th><th>GD</th><th>Pts</th></tr>
+          <tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
@@ -329,13 +551,24 @@ function groupCard(group) {
 }
 
 function standingRow(team, index) {
-  const zone = index < 2 ? "qualifies" : index === 2 ? "watch" : "";
+  const status = appState.qualification[team.id];
+  const zone = status ? `q-${status.tone}` : index < 2 ? "qualifies" : index === 2 ? "watch" : "";
+  const favHighlight = isFavorite(team.id) ? "is-fav" : "";
+
   return `
-    <tr class="${zone}">
+    <tr class="${zone} ${favHighlight}">
       <td class="pos">${index + 1}</td>
-      <td class="team-cell"><span class="flag">${team.flag || ""}</span><span>${escapeHtml(team.name)}</span></td>
+      <td class="team-cell">
+        ${favStar(team.id)}
+        <span class="flag">${team.flag || ""}</span>
+        <span class="team-name">${escapeHtml(team.name)}</span>
+        ${qualBadge(status)}
+      </td>
       <td>${team.played}</td>
-      <td>${signed(team.goalDifference)}</td>
+      <td>${team.wins}</td>
+      <td>${team.draws}</td>
+      <td>${team.losses}</td>
+      <td title="${team.goalsFor}:${team.goalsAgainst} goals">${signed(team.goalDifference)}</td>
       <td class="points">${team.points}</td>
     </tr>
   `;
@@ -348,7 +581,7 @@ function statusCard(fixture, isLive) {
   const statusText = isLive ? fixtureStatusLabel(fixture) : formatTime(fixture.kickoff);
 
   return `
-    <article class="status-card ${statusTone(fixture)}">
+    <article class="status-card ${statusTone(fixture)} ${favClass(fixture)}">
       <div class="status-top">
         <span>${escapeHtml(formatShortDate(fixture.kickoff))}</span>
         <b>${escapeHtml(statusText)}</b>
@@ -381,32 +614,47 @@ function roundColumn(title, fixtures) {
 function knockoutCard(fixture) {
   const venue = venueById.get(fixture.venue) || {};
   const statusClass = isLiveFixture(fixture) ? "is-live" : fixture.status === "finished" ? "is-finished" : "";
+  const resolved = appState.projection.resolved[fixture.id] || {};
+  const home = resolved.home || { slot: fixture.home, teamId: null, projected: false };
+  const away = resolved.away || { slot: fixture.away, teamId: null, projected: false };
 
   return `
-    <article class="knockout-card ${fixture.stage === "Final" ? "is-final" : ""} ${statusClass}">
+    <article class="knockout-card ${fixture.stage === "Final" ? "is-final" : ""} ${statusClass} ${favClass(fixture)}">
       <div class="match-meta">
         <span>${escapeHtml(formatShortDate(fixture.kickoff))}</span>
         <span>${escapeHtml(formatTime(fixture.kickoff))}</span>
       </div>
-      ${slotRow(fixture.home, fixture.homeScore)}
+      ${slotRow(home, fixture.homeScore)}
       <div class="versus">v</div>
-      ${slotRow(fixture.away, fixture.awayScore)}
+      ${slotRow(away, fixture.awayScore)}
       <div class="venue-line">${escapeHtml(venueName(venue))}</div>
     </article>
   `;
 }
 
-function slotRow(teamOrSlot, score) {
-  const label = slotLabelFor(teamOrSlot);
-  const pendingClass = teamById.has(teamOrSlot) ? "" : "is-pending";
+function slotRow(resolved, score) {
+  const teamId = resolved.teamId;
+  const label = slotDisplayLabel(resolved);
+  const pendingClass = teamId ? "" : "is-pending";
+  const projectedClass = resolved.projected ? "is-projected" : "";
+  const favHighlight = isFavorite(teamId) ? "is-fav" : "";
   const scoreClass = score === null || score === undefined ? "is-empty" : "";
+  const projTag = resolved.projected ? '<i class="proj-tag" title="Projected from current standings">proj</i>' : "";
 
   return `
-    <div class="slot-row ${pendingClass}">
-      <span>${flag(label)}${escapeHtml(label.name)}</span>
+    <div class="slot-row ${pendingClass} ${projectedClass} ${favHighlight}">
+      <span>${flag(label)}${escapeHtml(label.name)}${projTag}</span>
       <span class="score-box ${scoreClass}">${score ?? ""}</span>
     </div>
   `;
+}
+
+function slotDisplayLabel(resolved) {
+  if (resolved.teamId && teamById.has(resolved.teamId)) {
+    const team = teamById.get(resolved.teamId);
+    return { name: team.name, short: team.shortName, flag: team.flag };
+  }
+  return slotLabelFor(resolved.slot);
 }
 
 function fixtureRow(fixture) {
@@ -416,7 +664,7 @@ function fixtureRow(fixture) {
   const status = fixtureStatusLabel(fixture);
 
   return `
-    <article class="fixture-row ${statusTone(fixture)}">
+    <article class="fixture-row ${statusTone(fixture)} ${favClass(fixture)}">
       <div class="fixture-time">
         <span>${escapeHtml(formatShortDate(fixture.kickoff))}</span>
         <strong>${escapeHtml(formatTime(fixture.kickoff))}</strong>
@@ -454,9 +702,7 @@ function miniFixture(fixture) {
 }
 
 function thirdPlaceRows() {
-  const thirds = (appData.groups || [])
-    .map((group) => ({ group: group.id, ...group.teams[2] }))
-    .sort((a, b) => b.points - a.points || b.goalDifference - a.goalDifference || b.goalsFor - a.goalsFor || a.group.localeCompare(b.group));
+  const thirds = WCProjection.rankThirdPlaceTeams(appData.groups || []);
 
   return thirds.map((team, index) => `
     <tr class="${index < 8 ? "is-qualifying" : ""}">

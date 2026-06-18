@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "test": "node test-data.js && node --test test-data-service.js test-provider-client.js test-result-store.js"
+    "test": "node test-data.js && node --test test-data-service.js test-provider-client.js test-result-store.js test-wc-projection.js"
   },
   "dependencies": {
     "@vercel/blob": "^2.4.0"
