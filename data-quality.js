@@ -71,7 +71,7 @@ function validateTournamentData(data) {
   };
 }
 
-function canMergeProviderEvent(fixture, event) {
+function canMergeProviderEvent(fixture, event, options = {}) {
   const reasons = [];
 
   if (!fixture) {
@@ -87,7 +87,15 @@ function canMergeProviderEvent(fixture, event) {
     reasons.push(`Group mismatch: local ${fixture.group}, provider ${event.group}.`);
   }
 
-  if (event.stage && fixture.stage !== event.stage) {
+  // When a knockout fixture already carries real team ids (assigned by a prior
+  // provider update or a stored result), it was found by direct team-pair
+  // lookup. That is the strongest possible match signal — far stronger than a
+  // stage label, which is only a free-text field the provider may format
+  // differently ("Round of 16" vs "1/8 Finals" vs "Knockout Phase"). So the
+  // stage-mismatch check is only enforced for placeholder fixtures that were
+  // matched by schedule slot, where the stage is the disambiguator.
+  const enforceStageCheck = !options.matchedByTeams || fixture.stage === "Group";
+  if (enforceStageCheck && event.stage && fixture.stage !== event.stage) {
     reasons.push(`Stage mismatch: local ${fixture.stage}, provider ${event.stage}.`);
   }
 

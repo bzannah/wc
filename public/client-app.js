@@ -2,9 +2,9 @@ let appData = cloneData(WC_DATA);
 let teamById = new Map();
 let venueById = new Map();
 
-const REFRESH_INTERVAL_SECONDS = 30 * 60;
-const REFRESH_INTERVAL_LABEL = "30 min";
-const REFRESH_DETAIL_TEXT = "Refresh every 30 minutes.";
+const REFRESH_INTERVAL_SECONDS = 5 * 60;
+const REFRESH_INTERVAL_LABEL = "5 min";
+const REFRESH_DETAIL_TEXT = "Refresh every 5 minutes.";
 
 const STORAGE_KEYS = { favorites: "wc:favorites", timezone: "wc:timezone" };
 const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London";

@@ -6,7 +6,7 @@ const {
 const { applyStoredResults } = require("./result-store.js");
 
 const SOFASCORE_PROVIDER = "Sofascore RapidAPI";
-const REFRESH_INTERVAL_SECONDS = 30 * 60;
+const REFRESH_INTERVAL_SECONDS = 5 * 60;
 
 function refreshIntervalFor(data) {
   return REFRESH_INTERVAL_SECONDS;
@@ -127,7 +127,7 @@ function mergeSofascoreEvents(data, events, now = new Date()) {
     }
 
     const match = findFixtureMatch(fixtureLookup, data.allFixtures, normalized, assignedKnockout);
-    const mergeCheck = canMergeProviderEvent(match?.fixture, normalized);
+    const mergeCheck = canMergeProviderEvent(match?.fixture, normalized, { matchedByTeams: !match?.assignTeams });
     if (!mergeCheck.ok) {
       report.rejected += 1;
       report.warnings.push(`Rejected provider event ${normalized.providerId || `${normalized.home}-${normalized.away}`}: ${mergeCheck.reasons.join(" ")}`);
@@ -138,10 +138,7 @@ function mergeSofascoreEvents(data, events, now = new Date()) {
     const homeScore = match.reversed ? normalized.awayScore : normalized.homeScore;
     const awayScore = match.reversed ? normalized.homeScore : normalized.awayScore;
 
-    // Never downgrade a confirmed final (seed or stored result) with a scoreless feed event.
-    const alreadyFinal = fixture.status === "finished" && Number.isInteger(fixture.homeScore) && Number.isInteger(fixture.awayScore);
-    const incomingHasScores = Number.isInteger(homeScore) && Number.isInteger(awayScore);
-    if (alreadyFinal && normalized.status !== "finished" && !incomingHasScores) {
+    if (shouldSkipMerge(fixture, normalized, homeScore, awayScore)) {
       continue;
     }
 
@@ -155,7 +152,7 @@ function mergeSofascoreEvents(data, events, now = new Date()) {
 
     Object.assign(fixture, {
       providerId: normalized.providerId,
-      stage: normalized.stage || fixture.stage,
+      stage: fixture.stage,
       group: normalized.group || fixture.group,
       homeScore,
       awayScore,
@@ -170,6 +167,35 @@ function mergeSofascoreEvents(data, events, now = new Date()) {
 
   syncFixtureCollections(data);
   return report;
+}
+
+// Guards the merge against provider events that would degrade an already
+// confirmed fixture. Two rules, checked independently:
+//
+// 1. A finished result is never downgraded — not to "live", not to "scheduled".
+//    Only a finished provider event may touch it (e.g. a corrected score after
+//    a VAR review). This covers the narrow case the old guard handled (scoreless
+//    events) plus the much more dangerous case it missed: a stale "live" event
+//    carrying older scores that would silently rewrite a confirmed final.
+//
+// 2. Scores are never stripped. A fixture that already has integer scores (live
+//    or finished) keeps them when the incoming event carries none. This prevents
+//    out-of-order provider delivery ("notstarted" arriving after "inprogress")
+//    from erasing live data.
+function shouldSkipMerge(fixture, normalized, homeScore, awayScore) {
+  const alreadyFinal = fixture.status === "finished" &&
+    Number.isInteger(fixture.homeScore) && Number.isInteger(fixture.awayScore);
+  if (alreadyFinal && normalized.status !== "finished") {
+    return true;
+  }
+
+  const fixtureHasScores = Number.isInteger(fixture.homeScore) && Number.isInteger(fixture.awayScore);
+  const incomingHasScores = Number.isInteger(homeScore) && Number.isInteger(awayScore);
+  if (fixtureHasScores && !incomingHasScores) {
+    return true;
+  }
+
+  return false;
 }
 
 function normalizeSofascoreEvent(event, teamLookup, venueLookup, venues, now) {
@@ -494,11 +520,14 @@ function normalizeGroup(value = "") {
 
 function normalizeStage(value = "") {
   const text = String(value).toLowerCase();
-  if (text.includes("round of 32") || text.includes("r32")) return "Round of 32";
-  if (text.includes("round of 16") || text.includes("r16")) return "Round of 16";
-  if (text.includes("quarter")) return "Quarter-final";
-  if (text.includes("semi")) return "Semi-final";
-  if (text.includes("third")) return "Third-place play-off";
+  // Each round is checked in increasing specificity so that compound names like
+  // "1/16 Finals" or "Quarter-finals" — both of which contain the substring
+  // "final" — are mapped to the correct round, not to "Final".
+  if (text.includes("round of 32") || text.includes("r32") || text.includes("1/16") || text.includes("last 32")) return "Round of 32";
+  if (text.includes("round of 16") || text.includes("r16") || text.includes("1/8") || text.includes("last 16")) return "Round of 16";
+  if (text.includes("quarter") || text.includes("1/4 final")) return "Quarter-final";
+  if (text.includes("semi") || text.includes("1/2 final")) return "Semi-final";
+  if (text.includes("third") || text.includes("3rd place") || text.includes("3rd-place")) return "Third-place play-off";
   if (text.includes("final")) return "Final";
   return "Group";
 }
@@ -559,5 +588,6 @@ module.exports = {
   extractEvents,
   mergeSofascoreEvents,
   normalizeName,
+  normalizeStage,
   refreshIntervalFor
 };

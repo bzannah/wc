@@ -50,13 +50,13 @@ test("provider summary is ready when API key can use the default live endpoint",
   });
 });
 
-test("provider refresh interval is fixed at 30 minutes", () => {
+test("provider refresh interval is fixed at 5 minutes", () => {
   withEnv({
-    REFRESH_INTERVAL_SECONDS: "5"
+    REFRESH_INTERVAL_SECONDS: "30"
   }, () => {
     const summary = getProviderConfigSummary();
-    assert.equal(REFRESH_INTERVAL_SECONDS, 30 * 60);
-    assert.equal(summary.refreshEvery, 30 * 60);
+    assert.equal(REFRESH_INTERVAL_SECONDS, 5 * 60);
+    assert.equal(summary.refreshEvery, 5 * 60);
   });
 });
 
