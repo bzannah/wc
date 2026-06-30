@@ -383,8 +383,8 @@ function getTodaySet() {
 }
 
 function todayMatchCard(fixture, fixtures, mode) {
-  const home = labelFor(fixture.home);
-  const away = labelFor(fixture.away);
+  const home = fixtureSideLabel(fixture, "home");
+  const away = fixtureSideLabel(fixture, "away");
   const venue = venueById.get(fixture.venue) || {};
   const confidence = getDataConfidence();
   const status = fixtureStatusLabel(fixture);
@@ -403,7 +403,7 @@ function todayMatchCard(fixture, fixtures, mode) {
       <div class="today-main">
         <div class="today-copy">
           <span class="eyebrow">${escapeHtml(title)}</span>
-          <h2>${flag(home)}${escapeHtml(home.name)} <span class="versus-word">v</span> ${escapeHtml(away.name)}${flag(away, "right")}</h2>
+          <h2>${flag(home)}${escapeHtml(home.name)}${projectionTag(home.projected)} <span class="versus-word">v</span> ${escapeHtml(away.name)}${projectionTag(away.projected)}${flag(away, "right")}</h2>
           <p>${escapeHtml(matchStageText(fixture))} at ${escapeHtml(venue.name || "Venue TBC")}</p>
         </div>
         <div class="countdown-tile">
@@ -442,8 +442,8 @@ function todayMatchCard(fixture, fixtures, mode) {
 }
 
 function todayRailItem(fixture) {
-  const home = labelFor(fixture.home);
-  const away = labelFor(fixture.away);
+  const home = fixtureSideLabel(fixture, "home");
+  const away = fixtureSideLabel(fixture, "away");
   const venue = venueById.get(fixture.venue) || {};
 
   return `
@@ -575,8 +575,8 @@ function standingRow(team, index) {
 }
 
 function statusCard(fixture, isLive) {
-  const home = labelFor(fixture.home);
-  const away = labelFor(fixture.away);
+  const home = fixtureSideLabel(fixture, "home");
+  const away = fixtureSideLabel(fixture, "away");
   const venue = venueById.get(fixture.venue) || {};
   const statusText = isLive ? fixtureStatusLabel(fixture) : formatTime(fixture.kickoff);
 
@@ -639,11 +639,10 @@ function slotRow(resolved, score) {
   const projectedClass = resolved.projected ? "is-projected" : "";
   const favHighlight = isFavorite(teamId) ? "is-fav" : "";
   const scoreClass = score === null || score === undefined ? "is-empty" : "";
-  const projTag = resolved.projected ? '<i class="proj-tag" title="Projected from current standings">proj</i>' : "";
 
   return `
     <div class="slot-row ${pendingClass} ${projectedClass} ${favHighlight}">
-      <span>${flag(label)}${escapeHtml(label.name)}${projTag}</span>
+      <span>${flag(label)}${escapeHtml(label.name)}${projectionTag(resolved.projected)}</span>
       <span class="score-box ${scoreClass}">${score ?? ""}</span>
     </div>
   `;
@@ -658,8 +657,8 @@ function slotDisplayLabel(resolved) {
 }
 
 function fixtureRow(fixture) {
-  const home = labelFor(fixture.home);
-  const away = labelFor(fixture.away);
+  const home = fixtureSideLabel(fixture, "home");
+  const away = fixtureSideLabel(fixture, "away");
   const venue = venueById.get(fixture.venue) || {};
   const status = fixtureStatusLabel(fixture);
 
@@ -670,9 +669,9 @@ function fixtureRow(fixture) {
         <strong>${escapeHtml(formatTime(fixture.kickoff))}</strong>
       </div>
       <div class="fixture-teams">
-        <span>${flag(home)}${escapeHtml(home.name)}</span>
+        <span>${flag(home)}${escapeHtml(home.name)}${projectionTag(home.projected)}</span>
         <b>${escapeHtml(scoreText(fixture))}</b>
-        <span>${escapeHtml(away.name)}${flag(away, "right")}</span>
+        <span>${escapeHtml(away.name)}${flag(away, "right")}${projectionTag(away.projected)}</span>
       </div>
       <div class="fixture-stage">
         <span class="fixture-status-pill">${escapeHtml(status)}</span>
@@ -717,8 +716,8 @@ function thirdPlaceRows() {
 
 function matchesSearch(fixture) {
   if (!appState.search) return true;
-  const home = labelFor(fixture.home);
-  const away = labelFor(fixture.away);
+  const home = fixtureSideLabel(fixture, "home");
+  const away = fixtureSideLabel(fixture, "away");
   const venue = venueById.get(fixture.venue) || {};
   const haystack = [
     fixture.stage,
@@ -756,6 +755,26 @@ function labelFor(value) {
   }
 
   return { name: value || "TBC", short: value || "TBC", flag: "" };
+}
+
+// Display label for one side of any fixture. Group fixtures carry a real team
+// id, so labelFor resolves them directly. Knockout fixtures instead carry a
+// bracket placeholder ("1I", "3C/D/F/G/H", "W01"); the projection turns it into
+// the current team — confirmed once the feeding results are in, otherwise a
+// projection — and falls back to a readable slot name ("Winner Group I") when no
+// team can fill it yet. This keeps the fixtures list, today panel, and status
+// strip in step with the bracket instead of leaking raw codes.
+function fixtureSideLabel(fixture, side) {
+  const resolved = appState.projection.resolved[fixture.id];
+  if (resolved && resolved[side]) {
+    const info = slotDisplayLabel(resolved[side]);
+    return { ...info, projected: Boolean(resolved[side].teamId && resolved[side].projected) };
+  }
+  return { ...labelFor(fixture[side]), projected: false };
+}
+
+function projectionTag(projected) {
+  return projected ? '<i class="proj-tag" title="Projected from current standings">proj</i>' : "";
 }
 
 function scoreText(fixture) {
